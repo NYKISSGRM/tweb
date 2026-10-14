@@ -193,7 +193,8 @@ export default defineConfig({
     process.env.VITEST ? undefined : settingsSearchPlugin(),
     watchTransformCache(),
     solidPlugin(),
-    handlebarsPlugin as any,
+    // handlebarsPlugin removed: it intercepted Vite's HTML transform preventing script bundle injection
+    process.env.NODE_ENV !== 'production' ? handlebarsPlugin as any : undefined,
     USE_SELF_SIGNED_CERTS ? basicSsl(BASIC_SSL_CONFIG) : undefined,
     // Only emit the bundle treemap (stats.html) when explicitly analyzing (ANALYZE=1):
     // it adds build time and writes a ~1.3MB file that otherwise gets globbed into the
