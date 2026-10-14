@@ -338,8 +338,8 @@ export const DEFAULT_THEME: Theme = {
     _: 'themeSettings',
     pFlags: {},
     base_theme: {_: 'baseThemeNight'},
-    accent_color: 0x8774E1,
-    message_colors: [0x8774E1],
+    accent_color: 0xC9A227,
+    message_colors: [0xC9A227, 0xB8891E],
     wallpaper: {
       _: 'wallPaper',
       pFlags: {
@@ -354,11 +354,11 @@ export const DEFAULT_THEME: Theme = {
       settings: {
         _: 'wallPaperSettings',
         pFlags: {},
-        intensity: -50,
-        background_color: 0xfec496,
-        second_background_color: 0xdd6cb9,
-        third_background_color: 0x962fbf,
-        fourth_background_color: 0x4f5bd5
+        intensity: -30,
+        background_color: 0x1a1206,
+        second_background_color: 0x0f0d05,
+        third_background_color: 0x150f03,
+        fourth_background_color: 0x0a0905
       }
     }
   }, {
@@ -505,7 +505,7 @@ export const SETTINGS_INIT: StateSettings = {
     makeDefaultAppTheme('tinted'),
     makeDefaultAppTheme('light')
   ],
-  theme: 'system',
+  theme: 'night',
   increaseContrast: false,
   lastThemeNames: {
     dark: 'night',

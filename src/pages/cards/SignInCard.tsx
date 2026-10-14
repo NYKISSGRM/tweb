@@ -238,8 +238,10 @@ export default function SignInCard(_props: {spec: Spec}) {
             class={styles.logoContainer}
             size={120}
             element={
-              <svg class={styles.logo} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
-                <use href="#logo"/>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="120" height="120">
+                <rect width="160" height="160" rx="36" fill="#111"/>
+                <rect width="160" height="160" rx="36" fill="none" stroke="#C9A227" stroke-width="3" opacity="0.4"/>
+                <path d="M38 120V40L80 100V40M80 100L122 40V120" stroke="#C9A227" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
               </svg>
             }
           />

@@ -1,8 +1,8 @@
 const lang = {
-  'Login.Title': 'Sign in to Telegram',
+  'Login.Title': 'NYKISS Gram',
   'Login.PhoneLabel': 'Phone Number',
   'Login.PhoneLabelInvalid': 'Phone Number Invalid',
-  'Login.StartText': 'Please confirm your country code\nand enter your phone number.',
+  'Login.StartText': 'Enter your phone number\nto continue.',
   'Login.Code.SentSms': 'We have sent you an SMS\nwith the code.',
   'Login.Code.SentInApp': 'We have sent you a message in Telegram\nwith the code.',
   'Login.Code.SentCall': 'We will call you and dictate\nthe code.',
