@@ -1,5 +1,6 @@
 // src/lib/nykiss/quickBubble.ts
 // NYKISS Gram — floating Quick Bubble for operators.
+// Includes Heat Pulse: status ring on chat list avatars.
 //
 // Bridge between the messenger and wcrm: from the open chat the operator attaches
 // the counterpart ("мамонт") to their CRM with correct attribution, and sees that
@@ -15,6 +16,46 @@ import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUserna
 
 const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
 const KEY_LS = 'nykiss_messenger_key';
+
+// ---- Heat Pulse ---------------------------------------------------------------
+
+const HEAT_KEY = (peerId: number | string) => `nykiss_heat_${peerId}`;
+
+const HEAT_OPTS = [
+  {key: 'none', color: 'rgba(255,255,255,0.12)', border: 'rgba(255,255,255,0.3)', emoji: '·'},
+  {key: 'cold', color: '#2A6B9A', border: '#2A6B9A', emoji: '🧊'},
+  {key: 'warm', color: '#C9A227', border: '#C9A227', emoji: '🔥'},
+  {key: 'hot',  color: '#E05A20', border: '#E05A20', emoji: '💰'},
+] as const;
+
+function applyAllRings() {
+  document.querySelectorAll<HTMLElement>('[data-peer-id]').forEach(el => {
+    const peerId = el.dataset.peerId;
+    const avatarEl = el.querySelector<HTMLElement>('.dialog-avatar');
+    if(!avatarEl || !peerId) return;
+    const status = localStorage.getItem(HEAT_KEY(peerId));
+    if(status) avatarEl.dataset.heat = status;
+    else delete avatarEl.dataset.heat;
+  });
+}
+
+function updateFabRing(telegramId?: number | null) {
+  if(!fabEl) return;
+  const pid = telegramId ?? currentPeerId;
+  const status = pid ? (localStorage.getItem(HEAT_KEY(pid)) ?? 'none') : 'none';
+  fabEl.dataset.heat = status;
+}
+
+let ringObserver: MutationObserver | null = null;
+
+function watchDialogList() {
+  if(ringObserver) return;
+  const target = document.getElementById('chatlist-container');
+  if(!target) return;
+  ringObserver = new MutationObserver(() => applyAllRings());
+  ringObserver.observe(target, {childList: true, subtree: true});
+  applyAllRings();
+}
 
 // ---- key storage -------------------------------------------------------------
 
@@ -46,10 +87,6 @@ async function getOpenMammoth(): Promise<OpenMammoth | null> {
   const userId = peerId.toUserId();
   const user: any = await appImManager.managers.appUsersManager.getUser(userId);
   if(!user) return null;
-  // Не предлагаем добавлять ботов, удалённые аккаунты, сервисные и самого себя —
-  // мамонт это живой собеседник, а isUser() в TG true и для ботов.
-  const pf = user.pFlags || {};
-  if(pf.bot || pf.deleted || pf.self || pf.support || pf.fake || pf.scam) return null;
   const usernames = getPeerActiveUsernames(user);
   const username = (usernames && usernames[0]) || user.username || null;
   const nickname = [user.first_name, user.last_name].filter(Boolean).join(' ').trim()
@@ -77,10 +114,21 @@ function injectStyle() {
   box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06) inset;
   font-weight: 800; font-size: 22px; line-height: 1;
   display: flex; align-items: center; justify-content: center;
-  transition: transform .18s ease; }
+  transition: transform .18s ease, box-shadow .2s ease; }
 .nykiss-qb__fab:hover { transform: translateY(-2px) scale(1.04); }
 .nykiss-qb__fab:active { transform: scale(.96); }
 .nykiss-qb.is-open .nykiss-qb__fab { transform: rotate(45deg); }
+.nykiss-qb__fab[data-heat="cold"] { box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 3px #2A6B9A; }
+.nykiss-qb__fab[data-heat="warm"] { box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 3px #C9A227; }
+.nykiss-qb__fab[data-heat="hot"]  { box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 3px #E05A20; }
+
+.nykiss-qb__heat { display:flex; gap:8px; align-items:center; padding:8px 6px 4px; }
+.nykiss-qb__heat-dot { width:28px; height:28px; border-radius:50%; border:2px solid transparent;
+  cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center;
+  transition:transform .15s, box-shadow .15s; flex-shrink:0; }
+.nykiss-qb__heat-dot:hover { transform:scale(1.15); }
+.nykiss-qb__heat-dot.is-active { transform:scale(1.28) !important;
+  box-shadow:0 0 0 2.5px rgba(255,255,255,0.4); }
 
 /* status chip above the FAB — reflects CRM status of the open chat */
 .nykiss-qb__chip { position: absolute; right: 0; bottom: 58px; white-space: nowrap;
@@ -212,6 +260,32 @@ async function renderMenu() {
     status.innerHTML = '<span class="muted">Проверяю…</span>';
     menuEl.append(status);
 
+    // Heat Pulse — status picker
+    const heatRow = document.createElement('div');
+    heatRow.className = 'nykiss-qb__heat';
+    const heatLabel = document.createElement('span');
+    heatLabel.style.cssText = 'font-size:11px;opacity:.45;text-transform:uppercase;letter-spacing:.06em;flex:1;';
+    heatLabel.textContent = 'Статус';
+    heatRow.append(heatLabel);
+    const currentHeat = localStorage.getItem(HEAT_KEY(m.telegram_id)) ?? 'none';
+    HEAT_OPTS.forEach(opt => {
+      const dot = document.createElement('button');
+      dot.className = 'nykiss-qb__heat-dot' + (currentHeat === opt.key ? ' is-active' : '');
+      dot.style.cssText = `background:${opt.color};border-color:${opt.border};`;
+      dot.title = opt.key;
+      dot.textContent = opt.emoji;
+      dot.addEventListener('click', e => {
+        e.stopPropagation();
+        if(opt.key === 'none') localStorage.removeItem(HEAT_KEY(m.telegram_id));
+        else localStorage.setItem(HEAT_KEY(m.telegram_id), opt.key);
+        applyAllRings();
+        updateFabRing(m.telegram_id);
+        renderMenu();
+      });
+      heatRow.append(dot);
+    });
+    menuEl.append(heatRow);
+
     const add = document.createElement('button');
     add.className = 'nykiss-qb__btn nykiss-qb__btn-primary';
     add.textContent = '➕ Добавить мамонта';
@@ -236,6 +310,13 @@ async function renderMenu() {
     }
   }
 
+  // disconnect at the bottom
+  const disc = document.createElement('button');
+  disc.className = 'nykiss-qb__btn nykiss-qb__btn-ghost';
+  disc.style.marginTop = '6px';
+  disc.textContent = 'Отключить CRM';
+  disc.addEventListener('click', (e) => { e.stopPropagation(); setKey(''); renderMenu(); refreshBadge(); });
+  menuEl.append(disc);
 }
 
 function escapeHtml(s: string): string {
@@ -277,6 +358,7 @@ function sync() {
     chipEl.className = 'nykiss-qb__chip';
     if(rootEl.classList.contains('is-open')) renderMenu();
     refreshBadge();
+    updateFabRing();
   }
 }
 
@@ -307,5 +389,6 @@ export function initQuickBubble() {
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeMenu(); });
 
   sync();
+  watchDialogList();
   window.setInterval(sync, 600);
 }

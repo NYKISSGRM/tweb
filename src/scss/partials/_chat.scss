@@ -1637,63 +1637,6 @@
 	}
 }
 
-@keyframes nykiss-heat-pulse {
-  0%, 100% {
-    box-shadow:
-      0 0 0 2px rgba(#E05A20, 0.9),
-      0 0 10px rgba(#E05A20, 0.35);
-  }
-  50% {
-    box-shadow:
-      0 0 0 2px rgba(#E05A20, 1),
-      0 0 22px rgba(#E05A20, 0.7),
-      0 0 38px rgba(#E05A20, 0.18);
-  }
-}
-
-.nykiss-status-btn {
-  // Sit to the LEFT of the go-down button at the same height — no collision with mention buttons
-  --translateY: 0;
-  inset-inline-end: calc(var(--chat-input-height) + 1rem) !important;
-  transition: box-shadow 0.25s ease;
-
-  // colored dot as visual indicator
-  &::before {
-    content: '';
-    display: block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--nykiss-heat-color, rgba(255, 255, 255, 0.22));
-    transition: background 0.25s ease;
-    position: relative;
-  }
-
-  // !important to override box-shadow: ... !important on .chat-secondary-button
-  &.nykiss-heat--cold {
-    --nykiss-heat-color: #2A6B9A;
-    box-shadow:
-      0 0 0 2px rgba(#2A6B9A, 0.7),
-      0 0 10px rgba(#2A6B9A, 0.3) !important;
-  }
-
-  &.nykiss-heat--warm {
-    --nykiss-heat-color: #C9A227;
-    box-shadow:
-      0 0 0 2px rgba(#C9A227, 1),
-      0 0 14px rgba(#C9A227, 0.5) !important;
-  }
-
-  &.nykiss-heat--hot {
-    --nykiss-heat-color: #E05A20;
-    box-shadow:
-      0 0 0 2px rgba(#E05A20, 1),
-      0 0 16px rgba(#E05A20, 0.6) !important;
-    @media (prefers-reduced-motion: no-preference) {
-      animation: nykiss-heat-pulse 1.6s ease-in-out infinite;
-    }
-  }
-}
 
 .popup {
 	&.popup-delete-message {
