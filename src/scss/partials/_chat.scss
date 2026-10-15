@@ -1652,8 +1652,9 @@
 }
 
 .nykiss-status-btn {
-  // Always sit one slot above the go-down button
-  --translateY: calc(var(--chat-input-height) * -1 - .625rem);
+  // Sit to the LEFT of the go-down button at the same height — no collision with mention buttons
+  --translateY: 0;
+  inset-inline-end: calc(var(--chat-input-height) + 1rem) !important;
   transition: box-shadow 0.25s ease;
 
   // colored dot as visual indicator
@@ -1668,25 +1669,26 @@
     position: relative;
   }
 
+  // !important to override box-shadow: ... !important on .chat-secondary-button
   &.nykiss-heat--cold {
     --nykiss-heat-color: #2A6B9A;
     box-shadow:
-      0 0 0 2px rgba(#2A6B9A, 0.55),
-      0 0 8px rgba(#2A6B9A, 0.18);
+      0 0 0 2px rgba(#2A6B9A, 0.7),
+      0 0 10px rgba(#2A6B9A, 0.3) !important;
   }
 
   &.nykiss-heat--warm {
     --nykiss-heat-color: #C9A227;
     box-shadow:
-      0 0 0 2px rgba(#C9A227, 0.85),
-      0 0 12px rgba(#C9A227, 0.32);
+      0 0 0 2px rgba(#C9A227, 1),
+      0 0 14px rgba(#C9A227, 0.5) !important;
   }
 
   &.nykiss-heat--hot {
     --nykiss-heat-color: #E05A20;
     box-shadow:
-      0 0 0 2px rgba(#E05A20, 0.9),
-      0 0 14px rgba(#E05A20, 0.5);
+      0 0 0 2px rgba(#E05A20, 1),
+      0 0 16px rgba(#E05A20, 0.6) !important;
     @media (prefers-reduced-motion: no-preference) {
       animation: nykiss-heat-pulse 1.6s ease-in-out infinite;
     }
