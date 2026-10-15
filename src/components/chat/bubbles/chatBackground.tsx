@@ -563,6 +563,37 @@ export const ChatBackground: Component<ChatBackgroundProps> = (props) => {
  * - `getReadyPromise()` — promise of the most recent `setBackground` call (or resolved if idle).
  * - `resize()` — re-render pattern at the new layer size.
  */
+// NYKISS Gram — brand chat wallpaper FORCED for everyone, in every chat, over any per-account
+// wallpaper. Painted onto the page-wide background layer (`.nykiss-chat-wallpaper`, singleton only
+// — not inline previews): tweb's gradient/pattern/image canvas is hidden and replaced by the brand
+// photo (blurred + darkened into a moody backdrop so bubbles stay readable). Not changeable by the
+// user — that's the intent ("у всех"). Relative url() resolves against the document (/tweb/).
+function injectNykissWallpaperStyle() {
+  const STYLE_ID = 'nykiss-chat-wallpaper-style';
+  if(document.getElementById(STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+.nykiss-chat-wallpaper {
+  background-image: url(assets/img/nykiss-wp.jpg?v=3);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #070807;
+  filter: blur(5px) saturate(.8) brightness(.5);
+}
+.nykiss-chat-wallpaper > * { visibility: hidden; }
+.nykiss-chat-wallpaper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(7, 8, 6, .82), rgba(5, 5, 4, .9));
+  pointer-events: none;
+}
+`;
+  document.head.appendChild(style);
+}
+
 const appChatBackground = (() => {
   const element = document.createElement('div');
   element.setAttribute('aria-hidden', 'true');
@@ -610,8 +641,11 @@ const appChatBackground = (() => {
     if(mounted) return;
     mounted = true;
 
+    injectNykissWallpaperStyle();
+
     render(() => (
       <ChatBackground
+        class="nykiss-chat-wallpaper"
         theme={props().theme}
         wallPaper={props().wallPaper}
         transition={props().transition}
