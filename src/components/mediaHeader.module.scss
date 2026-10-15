@@ -71,6 +71,7 @@
 
 .title {
   margin-block: 0;
+  font-family: var(--font-heading); // NYKISS: Fraunces on card titles (login etc.)
   font-size: var(--font-size-24);
   line-height: var(--line-height-24);
   font-weight: var(--font-weight-bold);

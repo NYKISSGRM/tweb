@@ -129,6 +129,7 @@ body.is-pinned-audio-shown, body.is-calling.forwards {
 		display: flex;
 		align-items: center;
     font-weight: var(--font-weight-bold);
+    font-family: var(--font-heading); // NYKISS: Fraunces on the chat header name
 
 		.emoji-native {
 			vertical-align: inherit;
