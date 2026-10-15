@@ -14,7 +14,7 @@ import {AppSettingsTab} from '@components/solidJsTabs';
 import {AppNewChannelTab} from '@components/solidJsTabs/tabs';
 import {AppContactsTab} from '@components/solidJsTabs/tabs';
 import {AppCallsTab} from '@components/solidJsTabs/tabs';
-import AppNykissWebTab from '@components/sidebarLeft/tabs/nykissWeb';
+import {openNykissWeb} from '@lib/nykiss/nykissWeb';
 import {AppArchivedTab} from '@components/solidJsTabs/tabs';
 import createNewGroupTab from '@components/sidebarLeft/tabs/createNewGroupTab';
 import I18n, {i18n} from '@lib/langPack';
@@ -766,7 +766,7 @@ export class AppSidebarLeft extends SidebarSlider {
       regularText: 'NYKISS',
       onClick: () => {
         closeTabsBefore(() => {
-          this.createTab(AppNykissWebTab).open();
+          openNykissWeb();
         });
       }
     }, {
