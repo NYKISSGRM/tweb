@@ -2,17 +2,12 @@
 // NYKISS Gram — floating Quick Bubble for operators.
 //
 // A single fixed-position control that lives over the open chat (Nicegram-style).
-// Tapping it opens a compact menu with the operator tools:
-//   • Шаблоны   — saved quick replies, click to drop the text into the composer
-//   • Ghost Mode — on/off flag other NYKISS code reads before sending read/typing/
-//                  online packets; the actual MTProto interception lands in the
-//                  Ghost Mode phase, this is the switch + persisted state it reads
-//   • Удалённые  — Anti-Recall history (not wired yet; shown disabled)
+// Tapping it opens a compact list of quick-reply templates; clicking one drops
+// its text into the composer. Add/remove templates inline.
 //
 // Deliberately framework-free: it mounts into <body> and shows itself only while
 // a chat composer is on screen, so it never touches the SolidJS component tree.
 
-const GHOST_STORAGE_KEY = 'nykiss_ghost_mode';
 const TEMPLATES_STORAGE_KEY = 'nykiss_quick_templates';
 
 type QuickTemplate = {id: string; text: string};
@@ -25,7 +20,7 @@ const DEFAULT_TEMPLATES: QuickTemplate[] = [
 
 let inited = false;
 
-// ---- storage helpers (per-device; templates are an operator convenience) ----
+// ---- storage (per-device; templates are an operator convenience) ------------
 
 function readTemplates(): QuickTemplate[] {
   try {
@@ -41,23 +36,6 @@ function writeTemplates(list: QuickTemplate[]) {
   try {
     localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(list));
   } catch(e) {}
-}
-
-function isGhostOn(): boolean {
-  try {
-    return localStorage.getItem(GHOST_STORAGE_KEY) === '1';
-  } catch(e) {
-    return false;
-  }
-}
-
-function setGhost(on: boolean) {
-  try {
-    localStorage.setItem(GHOST_STORAGE_KEY, on ? '1' : '0');
-  } catch(e) {}
-  // Expose for the interception phase + let any listener react immediately.
-  (window as any).NYKISS_GHOST_MODE = on;
-  window.dispatchEvent(new CustomEvent('nykiss:ghost-mode', {detail: {on}}));
 }
 
 // ---- composer insertion ------------------------------------------------------
@@ -187,11 +165,8 @@ function injectStyle() {
   transition: background .12s ease;
 }
 .nykiss-qb__row:hover { background: rgba(201, 162, 39, .12); }
-.nykiss-qb__row[disabled] { opacity: .4; cursor: default; }
-.nykiss-qb__row[disabled]:hover { background: transparent; }
 .nykiss-qb__row-ico { font-size: 16px; width: 18px; text-align: center; }
 .nykiss-qb__row-label { flex: 1; min-width: 0; }
-.nykiss-qb__row-sub { display: block; font-size: 11px; opacity: .5; }
 
 .nykiss-qb__tpl {
   display: flex;
@@ -222,31 +197,6 @@ function injectStyle() {
   border-radius: 6px;
 }
 .nykiss-qb__tpl-del:hover { opacity: 1; background: rgba(255, 80, 80, .18); }
-
-.nykiss-qb__switch {
-  width: 36px;
-  height: 20px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, .18);
-  position: relative;
-  flex: 0 0 auto;
-  transition: background .16s ease;
-}
-.nykiss-qb__switch::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform .16s ease;
-}
-.nykiss-qb__row.is-on .nykiss-qb__switch { background: var(--primary-color, #C9A227); }
-.nykiss-qb__row.is-on .nykiss-qb__switch::after { transform: translateX(16px); }
-
-.nykiss-qb__divider { height: 1px; margin: 6px 4px; background: rgba(255, 255, 255, .07); }
 `;
   document.head.appendChild(style);
 }
@@ -255,7 +205,6 @@ function injectStyle() {
 
 let rootEl: HTMLDivElement;
 let menuEl: HTMLDivElement;
-let ghostRowEl: HTMLButtonElement;
 let templatesWrapEl: HTMLDivElement;
 
 function buildTemplatesList() {
@@ -305,57 +254,23 @@ function buildTemplatesList() {
   templatesWrapEl.append(add);
 }
 
-function refreshGhostRow() {
-  const on = isGhostOn();
-  ghostRowEl.classList.toggle('is-on', on);
-  (window as any).NYKISS_GHOST_MODE = on;
-}
-
 function buildMenu() {
   menuEl.textContent = '';
 
-  // Templates
-  const tplTitle = document.createElement('div');
-  tplTitle.className = 'nykiss-qb__section-title';
-  tplTitle.textContent = 'Шаблоны';
-  menuEl.append(tplTitle);
+  const title = document.createElement('div');
+  title.className = 'nykiss-qb__section-title';
+  title.textContent = 'Шаблоны';
+  menuEl.append(title);
 
   templatesWrapEl = document.createElement('div');
   menuEl.append(templatesWrapEl);
   buildTemplatesList();
-
-  menuEl.append(Object.assign(document.createElement('div'), {className: 'nykiss-qb__divider'}));
-
-  // Ghost Mode
-  ghostRowEl = document.createElement('button');
-  ghostRowEl.className = 'nykiss-qb__row';
-  ghostRowEl.innerHTML =
-    '<span class="nykiss-qb__row-ico">👻</span>' +
-    '<span class="nykiss-qb__row-label">Ghost Mode<span class="nykiss-qb__row-sub">не отмечать прочтение / онлайн</span></span>' +
-    '<span class="nykiss-qb__switch"></span>';
-  ghostRowEl.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setGhost(!isGhostOn());
-    refreshGhostRow();
-  });
-  menuEl.append(ghostRowEl);
-  refreshGhostRow();
-
-  // Anti-Recall (not wired yet)
-  const recall = document.createElement('button');
-  recall.className = 'nykiss-qb__row';
-  recall.setAttribute('disabled', '');
-  recall.innerHTML =
-    '<span class="nykiss-qb__row-ico">🗂</span>' +
-    '<span class="nykiss-qb__row-label">Удалённые<span class="nykiss-qb__row-sub">скоро</span></span>';
-  menuEl.append(recall);
 }
 
 // ---- open/close + visibility -------------------------------------------------
 
 function openMenu() {
   rootEl.classList.add('is-open');
-  refreshGhostRow();
   buildTemplatesList();
 }
 
@@ -386,7 +301,7 @@ export function initQuickBubble() {
   const fab = document.createElement('button');
   fab.className = 'nykiss-qb__fab';
   fab.textContent = 'N';
-  fab.title = 'NYKISS — быстрые действия';
+  fab.title = 'NYKISS — шаблоны';
   fab.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleMenu();
