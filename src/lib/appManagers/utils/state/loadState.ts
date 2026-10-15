@@ -191,6 +191,25 @@ const STATE_STEPS = {
         migrated = true;
       }
     });
+
+    // NYKISS: move existing accounts off the old default pattern wallpaper onto the new default
+    // brand wallpaper (night theme). Idempotent — only touches users whose night wallpaper is still
+    // the old default `pattern`, i.e. they never picked their own; a custom wallpaper is left as is.
+    const initNightWp = (STATE_INIT.settings?.themes as AppTheme[] | undefined)
+      ?.flatMap((t) => (Array.isArray(t.settings) ? t.settings : [t.settings]))
+      .find((s: any) => s?.base_theme?._ === 'baseThemeNight')?.wallpaper as any;
+    if(initNightWp?.slug === 'nykiss-default') {
+      themes.forEach((theme) => {
+        const settingsArr = (Array.isArray(theme.settings) ? theme.settings : [theme.settings]) as any[];
+        settingsArr.forEach((s) => {
+          if(s?.base_theme?._ === 'baseThemeNight' && s?.wallpaper?.slug === 'pattern') {
+            s.wallpaper = copy(initNightWp);
+            migrated = true;
+          }
+        });
+      });
+    }
+
     if(migrated) {
       writer.push('settings', writer.state.settings);
     }
