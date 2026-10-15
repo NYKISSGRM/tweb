@@ -192,6 +192,12 @@ function getWallPaperUrl(
     return {urlOrPromise: 'assets/img/pattern.svg', isColorOnly};
   }
 
+  // NYKISS Gram default chat wallpaper — a bundled, pre-darkened brand photo. Like the default
+  // pattern it resolves locally (no Telegram document download), so it works before managers exist.
+  if(slug === 'nykiss-default') {
+    return {urlOrPromise: 'assets/img/nykiss-default-bg.jpg', isColorOnly};
+  }
+
   const settings = wallPaper.settings;
   const urlOrPromise = ChatBackgroundStore.getBackground({
     slug,
@@ -557,44 +563,6 @@ export const ChatBackground: Component<ChatBackgroundProps> = (props) => {
  * - `getReadyPromise()` — promise of the most recent `setBackground` call (or resolved if idle).
  * - `resize()` — re-render pattern at the new layer size.
  */
-// NYKISS Gram — forced brand chat wallpaper for everyone (Wolf-of-Wall-Street still).
-// Painted straight onto the page-wide background layer (`.nykiss-chat-wallpaper`, set on the
-// singleton's ChatBackground only — not the inline previews): the tweb gradient/pattern canvas
-// is hidden and replaced by our photo + a dark overlay for bubble readability. Desktop vs mobile
-// image is picked by viewport width. Relative url() resolves against the document (/tweb/), so no
-// build-time asset wiring is needed. The user can't override it — that's the point of "у всех".
-function injectNykissWallpaperStyle() {
-  const STYLE_ID = 'nykiss-chat-wallpaper-style';
-  if(document.getElementById(STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = STYLE_ID;
-  style.textContent = `
-.nykiss-chat-wallpaper {
-  background-image: url(assets/img/nykiss-wp-desktop.jpg?v=2);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-color: #070807;
-  /* The raw still is bright and busy behind the bubbles — blur + desaturate it into a
-     moody backdrop so it reads as texture, not a competing photo. */
-  filter: blur(5px) saturate(.8) brightness(.5);
-}
-.nykiss-chat-wallpaper > * { visibility: hidden; }
-.nykiss-chat-wallpaper::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  /* Heavy, slightly gold-warm darkening so gold/dark bubbles stay high-contrast. */
-  background: linear-gradient(180deg, rgba(7, 8, 6, .82), rgba(5, 5, 4, .9));
-  pointer-events: none;
-}
-@media (max-width: 600px) {
-  .nykiss-chat-wallpaper { background-image: url(assets/img/nykiss-wp-mobile.jpg?v=2); }
-}
-`;
-  document.head.appendChild(style);
-}
-
 const appChatBackground = (() => {
   const element = document.createElement('div');
   element.setAttribute('aria-hidden', 'true');
@@ -642,11 +610,8 @@ const appChatBackground = (() => {
     if(mounted) return;
     mounted = true;
 
-    injectNykissWallpaperStyle();
-
     render(() => (
       <ChatBackground
-        class="nykiss-chat-wallpaper"
         theme={props().theme}
         wallPaper={props().wallPaper}
         transition={props().transition}

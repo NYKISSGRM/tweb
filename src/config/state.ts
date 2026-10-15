@@ -344,21 +344,18 @@ export const DEFAULT_THEME: Theme = {
       _: 'wallPaper',
       pFlags: {
         default: true,
-        pattern: true,
         dark: true
       },
       access_hash: '',
       document: undefined,
       id: '',
-      slug: 'pattern',
+      // NYKISS Gram default chat wallpaper — a pre-darkened brand photo (Wolf of Wall Street).
+      // Resolved to the bundled asset in getWallPaperUrl (chatBackground.tsx). It's the DEFAULT:
+      // a user can still pick their own wallpaper, which overrides this.
+      slug: 'nykiss-default',
       settings: {
         _: 'wallPaperSettings',
-        pFlags: {},
-        intensity: -30,
-        background_color: 0x1a1206,
-        second_background_color: 0x0f0d05,
-        third_background_color: 0x150f03,
-        fourth_background_color: 0x0a0905
+        pFlags: {}
       }
     }
   }, {
