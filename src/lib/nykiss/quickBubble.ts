@@ -46,6 +46,10 @@ async function getOpenMammoth(): Promise<OpenMammoth | null> {
   const userId = peerId.toUserId();
   const user: any = await appImManager.managers.appUsersManager.getUser(userId);
   if(!user) return null;
+  // Не предлагаем добавлять ботов, удалённые аккаунты, сервисные и самого себя —
+  // мамонт это живой собеседник, а isUser() в TG true и для ботов.
+  const pf = user.pFlags || {};
+  if(pf.bot || pf.deleted || pf.self || pf.support || pf.fake || pf.scam) return null;
   const usernames = getPeerActiveUsernames(user);
   const username = (usernames && usernames[0]) || user.username || null;
   const nickname = [user.first_name, user.last_name].filter(Boolean).join(' ').trim()
