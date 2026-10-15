@@ -501,6 +501,7 @@ export default class ChatInput {
 
   private goDownBtn: HTMLButtonElement;
   private goDownUnreadBadge: HTMLElement;
+  private nykissStatusBtn: HTMLButtonElement;
   /** the chat the counts of the go-down buttons were last put in for (`setUnreadCount`) */
   private unreadCountChatKey: string;
   private goMentionBtn: HTMLButtonElement;
@@ -676,6 +677,7 @@ export default class ChatInput {
     if(!this.excludeParts.downButton) {
       this.constructGoDownButton();
     }
+    this.constructStatusButton();
 
     this.placeholderParamsMiddlewareHelper = getMiddleware();
 
@@ -807,6 +809,34 @@ export default class ChatInput {
     attachClickEvent(this.goDownBtn, (e) => {
       cancelEvent(e);
       this.chat.bubbles.onGoDownClick();
+    }, {listenerSetter: this.listenerSetter});
+  }
+
+  // NYKISS Heat Pulse — operator heat status ring on chat bubble
+  private static readonly NYKISS_STATUSES = ['none', 'cold', 'warm', 'hot'] as const;
+  private nykissStatusKey() {
+    return `nykiss_heat_${this.chat.peerId}`;
+  }
+  private nykissApplyStatus() {
+    const btn = this.nykissStatusBtn;
+    if(!btn) return;
+    const current = (localStorage.getItem(this.nykissStatusKey()) ?? 'none') as typeof ChatInput.NYKISS_STATUSES[number];
+    ChatInput.NYKISS_STATUSES.forEach(s => btn.classList.remove(`nykiss-heat--${s}`));
+    if(current !== 'none') btn.classList.add(`nykiss-heat--${current}`);
+  }
+  private constructStatusButton() {
+    this.nykissStatusBtn = ButtonCorner({
+      className: 'bubbles-corner-button chat-secondary-button nykiss-status-btn hide'
+    });
+    this.inputContainer.append(this.nykissStatusBtn);
+    attachClickEvent(this.nykissStatusBtn, (e) => {
+      cancelEvent(e);
+      const key = this.nykissStatusKey();
+      const statuses = ChatInput.NYKISS_STATUSES;
+      const current = (localStorage.getItem(key) ?? 'none') as typeof statuses[number];
+      const next = statuses[(statuses.indexOf(current) + 1) % statuses.length];
+      localStorage.setItem(key, next);
+      this.nykissApplyStatus();
     }, {listenerSetter: this.listenerSetter});
   }
 
@@ -3118,6 +3148,12 @@ export default class ChatInput {
         isMonoforumAllChats: isMonoforum && canManageDirectMessages && !monoforumThreadId,
         isReplying: !!this.helperType
       });
+
+      if(this.nykissStatusBtn) {
+        const showStatus = peerId.isUser() && peerId !== rootScope.myId;
+        this.nykissStatusBtn.classList.toggle('hide', !showStatus);
+        if(showStatus) this.nykissApplyStatus();
+      }
 
       this.peerChanging = false;
       this.refreshStreamStoppable();
