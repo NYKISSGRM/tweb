@@ -39,15 +39,18 @@ export type PaintQrOptions = {
   QRCodeStylingCtor: any;
 };
 
-// The Telegram logo SVG is identical for a given tint every paint; fetch +
-// recolor + data-URL it once per colour instead of on every QR regenerate.
+// NYKISS Gram puts its gold "N" monogram in the QR centre instead of the
+// Telegram paper plane. Same N stroke as the login card (SignInCard), tinted
+// with the QR's logoColor. Cached per colour so we build the data URL once.
 const logoUrlCache = new Map<string, Promise<string>>();
 function getLogoUrl(logoColor: string): Promise<string> {
   let url = logoUrlCache.get(logoColor);
   if(!url) {
-    url = fetch('assets/img/logo_padded.svg')
-    .then((res) => res.text())
-    .then((text) => textToSvgURL(text.replace(/(fill:).+?(;)/, `$1${logoColor}$2`)));
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">' +
+      `<path d="M40 124V36L120 124V36" fill="none" stroke="${logoColor}" ` +
+      'stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    url = Promise.resolve(textToSvgURL(svg));
     logoUrlCache.set(logoColor, url);
   }
   return url;
