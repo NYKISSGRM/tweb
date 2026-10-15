@@ -236,13 +236,6 @@ async function renderMenu() {
     }
   }
 
-  // disconnect at the bottom
-  const disc = document.createElement('button');
-  disc.className = 'nykiss-qb__btn nykiss-qb__btn-ghost';
-  disc.style.marginTop = '6px';
-  disc.textContent = 'Отключить CRM';
-  disc.addEventListener('click', (e) => { e.stopPropagation(); setKey(''); renderMenu(); refreshBadge(); });
-  menuEl.append(disc);
 }
 
 function escapeHtml(s: string): string {
