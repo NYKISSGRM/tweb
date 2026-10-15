@@ -574,13 +574,18 @@ function injectNykissWallpaperStyle() {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  background-color: #070807;
+  /* The raw still is bright and busy behind the bubbles — blur + desaturate it into a
+     moody backdrop so it reads as texture, not a competing photo. */
+  filter: blur(4px) saturate(.85) brightness(.75);
 }
 .nykiss-chat-wallpaper > * { visibility: hidden; }
 .nykiss-chat-wallpaper::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(7, 8, 7, .5), rgba(7, 8, 7, .74));
+  /* Heavy, slightly gold-warm darkening so gold/dark bubbles stay high-contrast. */
+  background: linear-gradient(180deg, rgba(7, 8, 6, .82), rgba(5, 5, 4, .9));
   pointer-events: none;
 }
 @media (max-width: 600px) {
