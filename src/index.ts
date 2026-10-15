@@ -668,5 +668,8 @@ if(import.meta.env.DEV) {
     } else {
       await bootstrapIm();
     }
+
+    // NYKISS: mount the floating Quick Bubble once the IM page is up.
+    import('./lib/nykiss/quickBubble').then(({initQuickBubble}) => initQuickBubble());
   }
 });
