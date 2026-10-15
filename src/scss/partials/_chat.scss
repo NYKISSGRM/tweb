@@ -1652,17 +1652,20 @@
 }
 
 .nykiss-status-btn {
+  // Always sit one slot above the go-down button
+  --translateY: calc(var(--chat-input-height) * -1 - .625rem);
   transition: box-shadow 0.25s ease;
 
-  // default icon: small colored circle
+  // colored dot as visual indicator
   &::before {
     content: '';
     display: block;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    background: var(--nykiss-heat-color, rgba(255, 255, 255, 0.18));
+    background: var(--nykiss-heat-color, rgba(255, 255, 255, 0.22));
     transition: background 0.25s ease;
+    position: relative;
   }
 
   &.nykiss-heat--cold {
