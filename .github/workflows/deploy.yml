@@ -44,6 +44,14 @@ jobs:
           VITE_MTPROTO_HAS_HTTP: 1
           VITE_MTPROTO_HAS_WS: 1
 
+      # `vite build` runs with copyPublicDir:false, so the static assets that
+      # live in public/assets (fonts, tgico icon font, images, tgs intro
+      # stickers, audio) never land in dist. The upstream build.js copies them;
+      # this CI calls vite directly, so copy them in explicitly. Without this
+      # every /assets/* request 404s and the app paints a black screen.
+      - name: Copy static assets into dist
+        run: cp -r public/assets dist/assets
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
