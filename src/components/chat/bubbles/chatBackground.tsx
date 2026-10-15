@@ -575,19 +575,19 @@ function injectNykissWallpaperStyle() {
   style.id = STYLE_ID;
   style.textContent = `
 .nykiss-chat-wallpaper {
-  background-image: url(assets/img/nykiss-wp.jpg?v=3);
+  background-image: url(assets/img/nykiss-wp.jpg?v=4);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   background-color: #070807;
-  filter: blur(5px) saturate(.8) brightness(.5);
+  filter: blur(3px) saturate(.9) brightness(.82);
 }
 .nykiss-chat-wallpaper > * { visibility: hidden; }
 .nykiss-chat-wallpaper::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(7, 8, 6, .82), rgba(5, 5, 4, .9));
+  background: linear-gradient(180deg, rgba(7, 8, 6, .42), rgba(5, 5, 4, .6));
   pointer-events: none;
 }
 `;
