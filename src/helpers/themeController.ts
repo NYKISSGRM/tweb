@@ -126,22 +126,24 @@ const colorMap: {
     'input-search-background-color': '#ffffff'
   },
   night: {
-    'primary-color': '#8774E1',
-    'message-out-primary-color': '#8774E1',
-    'message-background-color': '#212121',
-    'surface-color': '#212121',
+    // NYKISS Gram — casino-noir × Wall-Street palette: warm near-black + gold,
+    // felt-emerald undertones. Accent/message colors are also set from state.ts
+    // (gold), these are the base surface/bg/text the whole shell inherits.
+    'primary-color': '#C9A227',
+    'message-out-primary-color': '#C9A227',
+    'message-background-color': '#19170f',
+    'surface-color': '#15140d',
     'danger-color': '#ff595a',
-    'primary-text-color': '#ffffff',
-    'secondary-text-color': '#aaaaaa',
-    'saved-color': '#8774E1',
-    'green-color': '#5CC85E',
-    // SCSS-side defaults migrated from base.scss .night
-    'background-color': '#181818',
-    'body-background-color': '#181818',
-    'border-color': '#0f0f0f',
-    'secondary-color': '#707579',
-    'link-color': '#8774E1', // SCSS resolves to var(--primary-color)
-    'input-search-background-color': '#181818'
+    'primary-text-color': '#F3EEDF',
+    'secondary-text-color': '#9a927d',
+    'saved-color': '#C9A227',
+    'green-color': '#32a271',
+    'background-color': '#0b0c0a',
+    'body-background-color': '#070807',
+    'border-color': '#241f12',
+    'secondary-color': '#6b6555',
+    'link-color': '#C9A227',
+    'input-search-background-color': '#14140e'
   },
   tinted: {
     // base colors ported from Telegram-Android darkblue.attheme (Dark Blue / Tinted)
