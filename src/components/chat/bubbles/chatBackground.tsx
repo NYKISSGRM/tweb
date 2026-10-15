@@ -570,14 +570,14 @@ function injectNykissWallpaperStyle() {
   style.id = STYLE_ID;
   style.textContent = `
 .nykiss-chat-wallpaper {
-  background-image: url(assets/img/nykiss-wp-desktop.jpg);
+  background-image: url(assets/img/nykiss-wp-desktop.jpg?v=2);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   background-color: #070807;
   /* The raw still is bright and busy behind the bubbles — blur + desaturate it into a
      moody backdrop so it reads as texture, not a competing photo. */
-  filter: blur(4px) saturate(.85) brightness(.75);
+  filter: blur(5px) saturate(.8) brightness(.5);
 }
 .nykiss-chat-wallpaper > * { visibility: hidden; }
 .nykiss-chat-wallpaper::after {
@@ -589,7 +589,7 @@ function injectNykissWallpaperStyle() {
   pointer-events: none;
 }
 @media (max-width: 600px) {
-  .nykiss-chat-wallpaper { background-image: url(assets/img/nykiss-wp-mobile.jpg); }
+  .nykiss-chat-wallpaper { background-image: url(assets/img/nykiss-wp-mobile.jpg?v=2); }
 }
 `;
   document.head.appendChild(style);
