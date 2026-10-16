@@ -30,6 +30,7 @@ const HEAT_OPTS = [
 ] as const;
 
 function applyAllRings() {
+  const active = getActiveFilter();
   document.querySelectorAll<HTMLElement>('[data-peer-id]').forEach(el => {
     const peerId = el.dataset.peerId;
     const avatarEl = el.querySelector<HTMLElement>('.dialog-avatar');
@@ -37,6 +38,13 @@ function applyAllRings() {
     const status = localStorage.getItem(HEAT_KEY(peerId));
     if(status) avatarEl.dataset.heat = status;
     else delete avatarEl.dataset.heat;
+    // In-place heat filter: hide chat-list rows that don't match the active chip.
+    // Re-derived every pass (and on list mutation) so it survives tweb's row recycling.
+    if(active && el.closest('.chatlist')) {
+      el.classList.toggle('nykiss-filtered-out', status !== active);
+    } else {
+      el.classList.remove('nykiss-filtered-out');
+    }
   });
 }
 
@@ -65,7 +73,6 @@ function watchDialogList() {
 
 const HEAT_FILTERS = [
   {key: 'cold', emoji: '🧊', label: 'Холодные'},
-  {key: 'warm', emoji: '🔥', label: 'Тёплые'},
   {key: 'hot',  emoji: '💰', label: 'Горячие'},
 ] as const;
 
@@ -73,77 +80,17 @@ type HeatLevel = typeof HEAT_FILTERS[number]['key'];
 let chipBtns: HTMLButtonElement[] = [];
 
 function getActiveFilter(): HeatLevel | '' {
-  return (localStorage.getItem(FILTER_KEY) as HeatLevel) || '';
+  const v = localStorage.getItem(FILTER_KEY);
+  return (v === 'cold' || v === 'hot') ? v : '';
 }
 
 function setActiveFilter(key: HeatLevel | '') {
   if(key) localStorage.setItem(FILTER_KEY, key);
   else localStorage.removeItem(FILTER_KEY);
-  if(key) showHeatOverlay(key);
-  else hideHeatOverlay();
+  // In-place filter: applyAllRings re-derives rings AND row hiding from current state.
+  // No overlay — the real chat rows stay in the list, chips stay clickable, no trap.
+  applyAllRings();
   updateHeatChipBtns();
-}
-
-let heatOverlayEl: HTMLElement | null = null;
-
-function showHeatOverlay(filterKey: HeatLevel) {
-  hideHeatOverlay();
-  const container = document.getElementById('chatlist-container');
-  if(!container) return;
-
-  // Collect all stored peers with this heat level from localStorage
-  const peers: {id: string, name: string}[] = [];
-  for(let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if(!k || !k.startsWith('nykiss_heat_') || k.includes('_name_') || k.includes('_filter')) continue;
-    const id = k.replace('nykiss_heat_', '');
-    if(localStorage.getItem(k) === filterKey) {
-      const name = localStorage.getItem(HEAT_NAME_KEY(id)) || `ID${id}`;
-      peers.push({id, name});
-    }
-  }
-
-  const overlay = document.createElement('div');
-  overlay.className = 'nykiss-heat-overlay';
-
-  if(!peers.length) {
-    const empty = document.createElement('div');
-    empty.className = 'nykiss-heat-overlay-empty';
-    const labels: Record<string, string> = {cold: 'холодных', warm: 'тёплых', hot: 'горячих'};
-    empty.innerHTML = `Нет ${labels[filterKey] || ''} чатов<br><small>Открой чат → N → Статус</small>`;
-    overlay.append(empty);
-  } else {
-    peers.forEach(({id, name}) => {
-      const domRow = document.querySelector<HTMLElement>(`[data-peer-id="${id}"]`);
-      const item = document.createElement('div');
-      item.className = 'nykiss-heat-overlay-item';
-      if(domRow) {
-        item.innerHTML = domRow.innerHTML;
-        domRow.classList.forEach(c => { if(c !== 'is-selected') item.classList.add(c); });
-        if(domRow.classList.contains('is-selected')) item.classList.add('is-selected');
-      } else {
-        item.innerHTML = `<div style="padding:13px 16px 13px 72px;font-size:15px;font-weight:500;">${escapeHtml(name)}</div>`;
-      }
-      item.addEventListener('click', () => {
-        const orig = document.querySelector<HTMLElement>(`[data-peer-id="${id}"]`);
-        if(orig) { orig.click(); return; }
-        // peer not in DOM — navigate via hash (username stored in name if starts with @)
-        try { (appImManager as any).setInnerPeer({peerId: id}); } catch(_) {}
-      });
-      overlay.append(item);
-    });
-  }
-
-  // Position inside chatlist container
-  const pos = container.style.position;
-  if(!pos || pos === 'static') container.style.position = 'relative';
-  container.appendChild(overlay);
-  heatOverlayEl = overlay;
-}
-
-function hideHeatOverlay() {
-  heatOverlayEl?.remove();
-  heatOverlayEl = null;
 }
 
 function updateHeatChipBtns() {
@@ -170,7 +117,6 @@ function buildHotFilterChip(overlay: HTMLElement) {
     btn.dataset.filterKey = f.key;
     btn.type = 'button';
     btn.addEventListener('click', () => {
-      applyAllRings();
       setActiveFilter(getActiveFilter() === f.key ? '' : f.key as HeatLevel);
     });
     row.append(btn);
@@ -180,9 +126,6 @@ function buildHotFilterChip(overlay: HTMLElement) {
   overlay.append(row);
   applyAllRings();
   updateHeatChipBtns();
-
-  const saved = getActiveFilter();
-  if(saved) showHeatOverlay(saved);
 }
 
 // ---- key storage -------------------------------------------------------------
@@ -306,16 +249,9 @@ function injectStyle() {
   flex: 1; justify-content: center; min-width: 0; }
 .nykiss-heat-chip:hover { opacity: .85; }
 .nykiss-heat-chip[data-filter-key="cold"].is-active { background: rgba(42,107,154,.25); border-color: #2A6B9A; color: #5ba8d4; box-shadow: 0 0 8px rgba(42,107,154,.3); }
-.nykiss-heat-chip[data-filter-key="warm"].is-active { background: rgba(201,162,39,.25); border-color: #C9A227; color: #D4A827; box-shadow: 0 0 8px rgba(201,162,39,.3); }
 .nykiss-heat-chip[data-filter-key="hot"].is-active  { background: rgba(224,90,32,.25);  border-color: #E05A20; color: #FF6B30; box-shadow: 0 0 8px rgba(224,90,32,.3); }
-/* Heat overlay — full-screen panel over chatlist showing only heat chats */
-.nykiss-heat-overlay { position: absolute; inset: 0; z-index: 50;
-  background: var(--surface-color, #141414); overflow-y: auto; display: flex; flex-direction: column; }
-.nykiss-heat-overlay-empty { padding: 40px 20px; text-align: center; opacity: .45;
-  font-size: 14px; line-height: 1.5; }
-.nykiss-heat-overlay-item { cursor: pointer; position: relative; }
-.nykiss-heat-overlay-item:hover { background: rgba(255,255,255,.04); }
-.nykiss-heat-overlay-item.is-selected { background: var(--secondary-surface-color, rgba(255,255,255,.06)); }
+/* In-place heat filter — hide rows that don't match the active chip (no overlay, no trap) */
+.nykiss-filtered-out { display: none !important; }
 `;
   document.head.appendChild(style);
 }
@@ -437,7 +373,7 @@ async function renderMenu() {
         }
         applyAllRings();
         updateFabRing(m.telegram_id);
-        if(getActiveFilter()) { showHeatOverlay(getActiveFilter() as HeatLevel); updateHeatChipBtns(); }
+        updateHeatChipBtns();
         renderMenu();
       });
       heatRow.append(dot);
