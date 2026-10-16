@@ -15,6 +15,7 @@ import appImManager from '@lib/appImManager';
 import rootScope from '@lib/rootScope';
 import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUsernames';
 import {initPinBot} from '@lib/nykiss/pinBot';
+import {initStartFolder} from '@lib/nykiss/startFolder';
 import {planFolders, toPlannerFolders, FOLDER_CAP, LEGACY_HEAT_FOLDER_TITLES, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
 
 export const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
@@ -1007,6 +1008,7 @@ export function initQuickBubble() {
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
   window.setInterval(refreshHeat, 20000);
   initPinBot();
+  initStartFolder();
   window.setInterval(sync, SYNC_MS);
   appImManager.addEventListener('peer_changed', sync);
 }
