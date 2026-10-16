@@ -61,33 +61,6 @@ function watchDialogList() {
   applyAllRings();
 }
 
-// ---- CRM Header Strip --------------------------------------------------------
-
-function refreshHeaderStrip(data: any | null) {
-  const bottom = document.querySelector<HTMLElement>('.person > .content > .bottom');
-  if(!bottom) return;
-  let strip = bottom.querySelector<HTMLElement>('.nykiss-crm-strip');
-  if(!data?.mine) {
-    if(strip) strip.style.display = 'none';
-    return;
-  }
-  if(!strip) {
-    strip = document.createElement('div');
-    strip.className = 'nykiss-crm-strip';
-    bottom.appendChild(strip);
-  }
-  strip.style.display = '';
-  const heatStatus = currentPeerId ? (localStorage.getItem(HEAT_KEY(currentPeerId)) ?? 'none') : 'none';
-  // Stage: strip leading emoji from API label to avoid duplication
-  const stageFull = (data.status_label || '').trim();
-  const stage = stageFull.replace(/^[ -￿\uD800-\uDFFF]+\s*/u, '') || stageFull || '—';
-  const deps = data.total_deposited > 0 ? `$${data.total_deposited}` : null;
-  const heatLabel: Record<string, string> = {hot: '💰 Горячий', warm: '🔥 Тёплый', cold: '🧊 Холодный'};
-  const parts = [heatStatus !== 'none' ? heatLabel[heatStatus] : null, stage, deps].filter(Boolean);
-  strip.textContent = parts.join(' · ');
-  strip.dataset.heat = heatStatus;
-}
-
 // ---- Hot Filter Chips (3-way: cold / warm / hot) -----------------------------
 
 const HEAT_FILTERS = [
@@ -321,13 +294,8 @@ function injectStyle() {
 .nykiss-qb__hint { font-size: 12px; opacity: .55; padding: 6px; line-height: 1.4; }
 
 /* CRM Header Strip — shown under chat name in topbar */
-.nykiss-crm-strip { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; line-height: 1.4; padding-top: 3px; max-width: 280px;
   opacity: .8; transition: color .2s; }
-.nykiss-crm-strip[data-heat="hot"]  { color: #FF6B30; opacity: 1; }
-.nykiss-crm-strip[data-heat="warm"] { color: #D4A827; opacity: 1; }
-.nykiss-crm-strip[data-heat="cold"] { color: #5ba8d4; opacity: .9; }
-.nykiss-crm-strip[data-heat="none"], .nykiss-crm-strip:not([data-heat]) { color: var(--secondary-text-color, rgba(255,255,255,.55)); }
 
 /* Hot Filter Chips — 3 in a row */
 .nykiss-heat-chip-row { display: flex; padding: 6px 10px 4px; gap: 6px; flex-shrink: 0; }
@@ -533,7 +501,6 @@ async function refreshBadge() {
       chipEl.textContent = '+ не в CRM';
       chipEl.className = 'nykiss-qb__chip is-shown';
     }
-    refreshHeaderStrip(b);
   } catch(e) { /* keep hidden on error */ }
 }
 
@@ -549,7 +516,6 @@ function sync() {
   if(peerId !== currentPeerId) {
     currentPeerId = peerId;
     chipEl.className = 'nykiss-qb__chip';
-    refreshHeaderStrip(null);
     if(rootEl.classList.contains('is-open')) renderMenu();
     refreshBadge();
     updateFabRing();
