@@ -6,7 +6,8 @@
 import Modes from '@config/modes';
 import createFocusTrap, {FocusTrap} from '@helpers/dom/focusTrap';
 import {getTeamMembers, isIdentityMismatch, IDENTITY_EVENT, teamApi} from '@lib/nykiss/team';
-import {achPct, daysWord, fmtMoney, fmtMskDay, fmtMskTime, sparkPoints} from '@lib/nykiss/profileModel';
+import {getKey} from '@lib/nykiss/quickBubble';
+import {achPct, daysWord, fmtMoney, fmtMskDay, fmtMskTime, mskDayKey, sparkPoints} from '@lib/nykiss/profileModel';
 
 const ID = 'nykiss-profile-overlay';
 const STYLE_ID = 'nykiss-profile-style';
@@ -32,7 +33,7 @@ type Period = {profits: number, earned: number};
 type RecentProfit = {at: string | null, type: string, x: number, amount: number, payout: number};
 
 // Блоки второй волны необязательны: старый сервер их не отдаёт, профиль просто рисует то, что пришло.
-type Profile = {
+export type Profile = {
   name: string,
   rank: {level: number, name: string, color: string} | null,
   rank_progress_pct: number,
@@ -47,6 +48,33 @@ type Profile = {
   recent?: RecentProfit[],
   records?: {best_day: {date: string, earned: number, profits: number} | null, best_profit: {payout: number, at: string} | null}
 };
+
+const PROFILE_TTL_MS = 120_000;
+let cache: {key: string, day: string, at: number, data: Profile} | null = null;
+let inflight: Promise<Profile | null> | null = null;
+let cacheWired = false;
+
+/** Профиль из памяти на пару минут: строки в нативном профиле и оверлей «Подробнее» делят один запрос (лимит сервера общий на IP).
+ *  Кэш не переживает смену ключа, смену аккаунта и смену московских суток. force=true перечитывает. */
+export function loadProfile(force = false): Promise<Profile | null> {
+  if(!cacheWired) {
+    cacheWired = true;
+    window.addEventListener(IDENTITY_EVENT, () => { cache = null; });
+  }
+  const key = getKey();
+  if(!key) {
+    cache = null;
+    return Promise.resolve(null);
+  }
+  const day = mskDayKey();
+  if(!force && cache && cache.key === key && cache.day === day && Date.now() - cache.at < PROFILE_TTL_MS) return Promise.resolve(cache.data);
+  if(inflight) return inflight;
+  inflight = teamApi('/messenger/profile').then((p: Profile | null) => {
+    cache = p ? {key, day, at: Date.now(), data: p} : null;
+    return p;
+  }).finally(() => { inflight = null; });
+  return inflight;
+}
 
 let trap: FocusTrap | undefined;
 let inerted: HTMLElement[] = [];
@@ -442,7 +470,7 @@ export async function openMyProfile() {
   trap = createFocusTrap(root);
   trap.activate(opener || undefined, x);
 
-  const p: Profile | null = await teamApi('/messenger/profile');
+  const p = await loadProfile(true);
   if(!root.isConnected) return;   // закрыли, пока грузилось
   body.removeAttribute('aria-busy');
   if(!p) {

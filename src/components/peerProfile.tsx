@@ -15,6 +15,7 @@ import {Middleware} from '@helpers/middleware';
 import pause from '@helpers/schedulers/pause';
 import classNames from '@helpers/string/classNames';
 import Row from '@components/rowTsx';
+import NykissEarnings from '@components/nykissEarnings';
 import formatUserPhone from '@components/wrappers/formatUserPhone';
 import {copyTextToClipboard} from '@helpers/clipboard';
 import {copyPhoneNumber, copyUsername} from '@helpers/copyContact';
@@ -1676,6 +1677,7 @@ PeerProfile.LinkedCommunity = () => {
 
 PeerProfile.MainSection = () => {
   const context = useContext(PeerProfileContext);
+  const {rootScope} = useHotReloadGuard();
 
   return (
     <Section
@@ -1684,6 +1686,9 @@ PeerProfile.MainSection = () => {
       <Show when={!(context.isBotforum && context.threadId)}>
         <PeerProfile.Phone />
         <PeerProfile.Username />
+        <Show when={context.peerId === rootScope.myId && !context.isDialog}>
+          <NykissEarnings />
+        </Show>
         <PeerProfile.Location />
         <PeerProfile.Bio />
         <PeerProfile.Link />

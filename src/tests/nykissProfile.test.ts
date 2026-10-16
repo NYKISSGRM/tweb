@@ -1,4 +1,4 @@
-import {achPct, daysWord, fmtMoney, fmtMskDay, fmtMskTime, sparkPoints} from '@lib/nykiss/profileModel';
+import {achPct, daysWord, earningsRows, fmtMoney, fmtMskDay, fmtMskTime, mskDayKey, sparkPoints} from '@lib/nykiss/profileModel';
 
 describe('nykiss profile model', () => {
   test('fmtMoney: whole dollars have no cents, fractions have two digits', () => {
@@ -47,5 +47,34 @@ describe('nykiss profile model', () => {
     expect([1, 2, 4, 5, 11, 12, 21, 22, 25, 111].map(daysWord)).toEqual(
       ['день', 'дня', 'дня', 'дней', 'дней', 'дней', 'день', 'дня', 'дней', 'дней']
     );
+  });
+
+  test('mskDayKey: the Moscow date, not the UTC one', () => {
+    expect(mskDayKey(new Date('2026-10-14T21:30:00Z'))).toBe('2026-10-15');
+    expect(mskDayKey(new Date('2026-10-14T20:59:00Z'))).toBe('2026-10-14');
+  });
+
+  test('earningsRows: money and rank rows, nothing when there is nothing to show', () => {
+    expect(earningsRows(null)).toBeNull();
+    expect(earningsRows({})).toBeNull();
+    const r = earningsRows({
+      rank: {name: 'Золото', color: '#C9A227'},
+      streak: {current: 5, visible: true, state: 'active'},
+      periods: {today: {earned: 100}, month: {earned: 640}}
+    });
+    expect(r.money).toEqual({today: '$100', month: '$640', aria: 'Заработок: сегодня $100, за месяц $640'});
+    expect(r.rank).toEqual({name: 'Золото', color: '#C9A227', fire: 'Огонёк: 5 дней'});
+  });
+
+  test('earningsRows: an old server without periods still gives the rank row; a bad colour is dropped', () => {
+    const r = earningsRows({rank: {name: 'Белый', color: 'red;background:url(x)'}, streak: {current: 0}});
+    expect(r.money).toBeNull();
+    expect(r.rank).toEqual({name: 'Белый', color: null, fire: null});
+    expect(earningsRows({streak: {current: 2, state: 'lost'}})).toBeNull();
+  });
+
+  test('earningsRows never exposes company share fields', () => {
+    const r = earningsRows({periods: {today: {earned: 1}, month: {earned: 2}}, our_income: 99, commission: 5} as any);
+    expect(JSON.stringify(r)).not.toMatch(/our_income|commission|house/);
   });
 });
