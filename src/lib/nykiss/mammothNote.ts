@@ -46,6 +46,15 @@ export const NOTE_CSS = `
 .nykiss-qb__chipnote{max-inline-size:150px;overflow:hidden;text-overflow:ellipsis;color:var(--nq-muted);font-weight:500}
 `;
 
+/** Человеческая причина сбоя записи (apiFetch бросает 'bad-key' | 'http-<код>'; всё остальное: сеть, CORS, блокировщик). */
+export function noteError(e: any): string {
+  const m = String(e?.message || '');
+  if(m === 'bad-key') return 'Ключ слетел, подключи CRM заново';
+  const http = /^http-(\d+)$/.exec(m);
+  if(http) return http[1] === '429' ? 'Слишком часто, подожди минуту' : http[1] === '404' ? 'Этот мамонт не в твоей CRM' : `Сервер ответил ошибкой ${http[1]}`;
+  return 'Запрос не дошёл до сервера (' + (m || 'нет связи') + ')';
+}
+
 /** Подключает поведение к полю внутри меню: сохраняем при уходе из поля и по Enter, при ошибке возвращаем прежнее значение. */
 export function wireNoteField(root: HTMLElement, initial: string | null | undefined, save: (note: string) => Promise<string | null | undefined>) {
   const input = root.querySelector<HTMLInputElement>('.nykiss-qb__noteinput');
@@ -70,7 +79,8 @@ export function wireNoteField(root: HTMLElement, initial: string | null | undefi
       say(saved ? 'Сохранено' : 'Заметка удалена');
     } catch(e) {
       input.value = saved;
-      say('Не сохранилось, попробуй ещё раз', true);
+      console.warn('[nykiss] note save failed', e);
+      say(noteError(e), true);
     }
   };
 

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {chipNote, noteFieldHtml, sanitizeNote, wireNoteField} from '@lib/nykiss/mammothNote';
+import {chipNote, noteError, noteFieldHtml, sanitizeNote, wireNoteField} from '@lib/nykiss/mammothNote';
 
 describe('nykiss mammoth note', () => {
   test('sanitizeNote: one line, no control or invisible characters, direction marks kept, 200 code points', () => {
@@ -61,6 +61,15 @@ describe('nykiss mammoth note', () => {
     await new Promise(r => setTimeout(r, 0));
     expect(calls[calls.length - 1]).toBe('');
     expect(state.textContent).toBe('Заметка удалена');
+  });
+
+  test('noteError names the real reason', () => {
+    expect(noteError(new Error('bad-key'))).toMatch(/Ключ слетел/);
+    expect(noteError(new Error('http-404'))).toMatch(/не в твоей CRM/);
+    expect(noteError(new Error('http-429'))).toMatch(/Слишком часто/);
+    expect(noteError(new Error('http-500'))).toBe('Сервер ответил ошибкой 500');
+    expect(noteError(new TypeError('Failed to fetch'))).toBe('Запрос не дошёл до сервера (Failed to fetch)');
+    expect(noteError(undefined)).toMatch(/не дошёл до сервера/);
   });
 
   test('wireNoteField: pasted multi-line text becomes one line with spaces', () => {
