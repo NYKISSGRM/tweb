@@ -13,6 +13,7 @@
 
 import appImManager from '@lib/appImManager';
 import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUsernames';
+import {planFolders, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
 
 const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
 const KEY_LS = 'nykiss_messenger_key';
@@ -23,21 +24,126 @@ const KEY_LS = 'nykiss_messenger_key';
 //   cold — default, nothing shown   warm — operator marks "ready to pay"
 //   hot  — set by the server itself once TRICK reports a deposit (never manual)
 type Heat = 'cold' | 'warm' | 'hot';
-const heatMap = new Map<string, Heat>(); // telegram_id (= tweb user peerId) → heat
+const heatMap = new Map<string, Heat>();        // user id (= tweb peerId) → heat
+const heatByName = new Map<string, Heat>();     // username → heat, for мамонты the CRM knows only by @username
+const peerUsername = new Map<string, string>(); // user id → username ('' = none); filled from tweb's own cache
 
 function heatOf(peerId: number | string | null | undefined): Heat {
-  return (peerId != null && heatMap.get(String(peerId))) || 'cold';
+  if(peerId == null) return 'cold';
+  const id = String(peerId);
+  const byId = heatMap.get(id);
+  if(byId) return byId;
+  const name = peerUsername.get(id);
+  return (name && heatByName.get(name)) || 'cold';
+}
+
+// Every chat the CRM has a temperature for, by id (usernames matched to ids where tweb knows them).
+function allHeat(): Map<string, Heat> {
+  const all = new Map(heatMap);
+  if(heatByName.size) {
+    peerUsername.forEach((name, id) => {
+      const h = name && heatByName.get(name);
+      if(h && !all.has(id)) all.set(id, h);
+    });
+  }
+  return all;
+}
+
+// ---- rings: one observer, every avatar that carries a peer id ----
+// tweb stamps `data-peer-id` on every `.avatar` (chat list, search, topbar, profile…), so one selector
+// covers them all. The profile carousel has no id on its photos: its container is painted from the first one.
+
+const AVATAR_SEL = '.avatar[data-peer-id]';
+const PROFILE_SEL = '.profile-avatars-container';
+const pendingRings = new Set<HTMLElement>();
+let ringFrame = 0;
+let ringFullScan = false;
+
+function setHeatAttr(el: HTMLElement, peerId: string | undefined) {
+  const heat = heatOf(peerId);
+  const cur = el.dataset.heat;
+  if(heat === 'cold') { if(cur) delete el.dataset.heat; } else if(cur !== heat) el.dataset.heat = heat;
+}
+
+function paintAvatar(av: HTMLElement) {
+  // topics / saved messages carry a thread id and the peer of the group — not a person
+  if(av.dataset.threadId || av.closest(PROFILE_SEL)) { delete av.dataset.heat; return; }
+  setHeatAttr(av, av.dataset.peerId);
+}
+
+function paintProfile(box: HTMLElement) {
+  const first = box.querySelector<HTMLElement>('.profile-avatars-avatar-first .avatar[data-peer-id]') ||
+    box.querySelector<HTMLElement>(AVATAR_SEL);
+  setHeatAttr(box, first?.dataset.peerId);
+}
+
+// Learn usernames of the ids on screen from tweb's cache (no network) — only needed while the CRM
+// has мамонты it knows by @username alone.
+let resolvingNames = false;
+async function resolveNames(avatars: HTMLElement[]) {
+  if(!heatByName.size || resolvingNames) return;
+  const ids = [...new Set(avatars.map(a => a.dataset.peerId || ''))]
+  .filter(id => /^\d+$/.test(id) && !peerUsername.has(id)).slice(0, 200);
+  if(!ids.length) return;
+  resolvingNames = true;
+  try {
+    const {appUsersManager} = appImManager.managers;
+    let learned = false;
+    for(const id of ids) {
+      const user: any = await appUsersManager.getUser(+id);
+      const name = String((user && ((getPeerActiveUsernames(user) || [])[0] || user.username)) || '').toLowerCase();
+      peerUsername.set(id, name);
+      if(name && heatByName.has(name)) learned = true;
+    }
+    if(learned) { applyAllRings(); reconcileHeatFolders(); }
+  } catch(e) { /* user not cached yet — try on the next pass */ } finally { resolvingNames = false; }
+}
+
+function flushRings() {
+  ringFrame = 0;
+  const seen: HTMLElement[] = [];
+  if(ringFullScan) {
+    ringFullScan = false;
+    document.querySelectorAll<HTMLElement>(AVATAR_SEL).forEach(av => { paintAvatar(av); seen.push(av); });
+    document.querySelectorAll<HTMLElement>(PROFILE_SEL).forEach(paintProfile);
+  } else {
+    pendingRings.forEach(n => {
+      if(!n.isConnected) return;
+      if(n.matches(AVATAR_SEL)) { paintAvatar(n); seen.push(n); }
+      n.querySelectorAll<HTMLElement>(AVATAR_SEL).forEach(av => { paintAvatar(av); seen.push(av); });
+      const box = n.closest<HTMLElement>(PROFILE_SEL);
+      if(box) paintProfile(box);
+      n.querySelectorAll<HTMLElement>(PROFILE_SEL).forEach(paintProfile);
+    });
+  }
+  pendingRings.clear();
+  if(seen.length) resolveNames(seen);
+}
+
+function scheduleRings() {
+  if(!ringFrame) ringFrame = requestAnimationFrame(flushRings);
 }
 
 function applyAllRings() {
-  document.querySelectorAll<HTMLElement>('[data-peer-id]').forEach(el => {
-    const peerId = el.dataset.peerId;
-    const avatarEl = el.querySelector<HTMLElement>('.dialog-avatar');
-    if(!avatarEl || !peerId) return;
-    const heat = heatOf(peerId);
-    if(heat === 'cold') delete avatarEl.dataset.heat;
-    else avatarEl.dataset.heat = heat;
+  ringFullScan = true;
+  scheduleRings();
+}
+
+let ringObserver: MutationObserver | null = null;
+function watchAvatars() {
+  if(ringObserver) return;
+  ringObserver = new MutationObserver(records => {
+    for(const r of records) {
+      if(r.type === 'attributes') pendingRings.add(r.target as HTMLElement);
+      else r.addedNodes.forEach(n => { if(n.nodeType === 1) pendingRings.add(n as HTMLElement); });
+    }
+    if(pendingRings.size) scheduleRings();
   });
+  // tweb reuses avatar nodes and swaps the peer id on a live one, so the attribute is watched too
+  ringObserver.observe(document.body, {
+    childList: true, subtree: true, attributes: true, attributeFilter: ['data-peer-id']
+  });
+  applyAllRings();
 }
 
 function updateFabRing(telegramId?: number | null) {
@@ -47,95 +153,108 @@ function updateFabRing(telegramId?: number | null) {
   else fabEl.dataset.heat = heat;
 }
 
-let ringObserver: MutationObserver | null = null;
-function watchDialogList() {
-  if(ringObserver) return;
-  const target = document.getElementById('chatlist-container');
-  if(!target) return;
-  ringObserver = new MutationObserver(() => applyAllRings());
-  ringObserver.observe(target, {childList: true, subtree: true});
-  applyAllRings();
-}
-
 // ---- Heat folders: real Telegram folders «Тёплые» / «Горячие» -----------------
-// Mirrors the CRM temperature into folders (created on first use). Cold chats have no folder.
-// Folders live on the Telegram account, so they follow the operator to every device.
+// The CRM owns them: content = exactly the chats with that temperature (see heatFolders.ts).
+// Cold chats have no folder. Folders live on the Telegram account, so they follow the operator everywhere.
 
-const HEAT_FOLDERS = {
-  warm: {title: 'Тёплые', emoticon: '🔥'},
-  hot: {title: 'Горячие', emoticon: '💰'}
-} as const;
-const FOLDER_CAP = 100; // Telegram: max chats per folder
-const LEGACY_FOLDER_TITLE = 'Холодные'; // the one we created earlier; cold has no folder now
+const FOLDER_CAP = 100; // Telegram: chats per folder
+let folderDirty = false;
+let folderRunning: Promise<void> | null = null;
 
-let folderQueue: Promise<void> = Promise.resolve();
+async function runFolderPass() {
+  const {filtersStorage: fs, appPeersManager, appUsersManager} = appImManager.managers;
+  const want: Record<HeatKey, number[]> = {warm: [], hot: []};
+  const unresolved: Record<HeatKey, number> = {warm: 0, hot: 0};
 
-function findFolder(filters: any[], title: string) {
-  return filters.find(f => f._ === 'dialogFilter' && f.title?.text === title);
-}
+  for(const [id, heat] of allHeat()) {
+    if(heat === 'cold') continue;
+    const user: any = await appUsersManager.getUser(+id);
+    // a chat can only join a folder when tweb holds its access hash
+    if(user && (user.access_hash || user.pFlags?.self) && want[heat].length < FOLDER_CAP) want[heat].push(+id);
+    else unresolved[heat]++;
+  }
 
-// Serialized: concurrent passes must not both create the same folder.
-function reconcileHeatFolders() {
-  folderQueue = folderQueue.then(async() => {
-    const {filtersStorage, appPeersManager, appUsersManager} = appImManager.managers;
-    let filters: any[] = await filtersStorage.getDialogFilters();
+  const fresh: any[] = (await fs.getDialogFilters(true)).filter((f: any) => f._ === 'dialogFilter' && f.id > 1);
+  const ops = planFolders(fresh.map(f => ({
+    id: f.id,
+    title: f.title?.text || '',
+    includePeerIds: f.includePeerIds || [],
+    pinnedPeerIds: f.pinnedPeerIds || [],
+    excludePeerIds: f.excludePeerIds || []
+  })), want, unresolved);
 
-    const legacy = findFolder(filters, LEGACY_FOLDER_TITLE);
-    if(legacy && legacy.emoticon === '🧊') await filtersStorage.updateDialogFilter(legacy, true);
-
-    for(const key of ['warm', 'hot'] as const) {
-      const def = HEAT_FOLDERS[key];
-      const filter: any = findFolder(filters, def.title);
-      const current: number[] = filter?.includePeerIds || [];
-
-      // keep what the user put there by hand; drop CRM chats whose temperature moved on
-      const kept = current.filter(id => !heatMap.has(String(id)) || heatMap.get(String(id)) === key);
-      const want = [...heatMap].filter(([, h]) => h === key).map(([id]) => +id);
-      const next = [...kept];
-      for(const id of want) {
-        if(next.length >= FOLDER_CAP) break;
-        if(next.includes(id)) continue;
-        const user: any = await appUsersManager.getUser(id);
-        if(!user || !user.access_hash) continue; // no chat/contact access yet — can't be put in a folder
-        next.push(id);
-      }
-
-      const unchanged = next.length === current.length && next.every(id => current.includes(id));
-      if(unchanged || (!filter && !next.length)) continue;
-
-      const inputPeers = await Promise.all(next.map(id => appPeersManager.getInputPeerById(id)));
-      if(!filter) {
-        await filtersStorage.createDialogFilter({
-          _: 'dialogFilter', pFlags: {}, id: 0, emoticon: def.emoticon,
-          title: {_: 'textWithEntities', text: def.title, entities: []},
-          pinned_peers: [], include_peers: inputPeers, exclude_peers: [],
-          pinnedPeerIds: [], includePeerIds: next, excludePeerIds: []
-        } as any);
-      } else {
-        await filtersStorage.updateDialogFilter({...filter, includePeerIds: next, include_peers: inputPeers});
-      }
-      filters = await filtersStorage.getDialogFilters();
+  for(const op of ops) {
+    if(op.type === 'delete') {
+      const f = fresh.find(x => x.id === op.id);
+      if(f) await fs.updateDialogFilter(f, true);
+      continue;
     }
-  }).catch(e => console.warn('[nykiss] heat folders:', e));
-  return folderQueue;
+    const inputPeers = await Promise.all(op.peerIds.map(id => appPeersManager.getInputPeerById(id)));
+    // built from scratch: nothing of a previous version (pinned, excluded, flags) is carried over
+    const filter: any = {
+      _: 'dialogFilter', pFlags: {}, id: op.id ?? 0,
+      title: {_: 'textWithEntities', text: HEAT_FOLDER_TITLES[op.key], entities: []},
+      emoticon: HEAT_FOLDER_EMOTICONS[op.key],
+      pinned_peers: [], pinnedPeerIds: [],
+      exclude_peers: [], excludePeerIds: [],
+      include_peers: inputPeers, includePeerIds: op.peerIds
+    };
+    if(op.id === null) await fs.createDialogFilter(filter);
+    else await fs.updateDialogFilter(filter);
+  }
 }
 
-let heatInFlight = false;
-async function refreshHeat() {
-  if(!getKey() || heatInFlight) return;
-  heatInFlight = true;
-  try {
-    const r = await apiFetch('/messenger/heat');
-    heatMap.clear();
-    for(const it of r.items || []) heatMap.set(String(it.telegram_id), it.heat);
-    applyAllRings();
-    updateFabRing();
-    await reconcileHeatFolders();
-  } catch(e) { /* offline / bad key — keep last known state */ } finally { heatInFlight = false; }
+// A request that arrives mid-pass is not dropped: it marks the state dirty and the pass runs once more.
+// The Web Lock keeps two tabs from creating the same folder twice.
+function reconcileHeatFolders(): Promise<void> {
+  folderDirty = true;
+  if(folderRunning) return folderRunning;
+  const run = async() => {
+    while(folderDirty) {
+      folderDirty = false;
+      try {
+        if(navigator.locks) await navigator.locks.request('nykiss-heat-folders', runFolderPass);
+        else await runFolderPass();
+      } catch(e) { console.warn('[nykiss] heat folders:', e); }
+    }
+  };
+  folderRunning = run().finally(() => { folderRunning = null; });
+  return folderRunning;
 }
 
-// One-time: statuses kept per-browser before the CRM held them. Only "warm" carries over:
-// cold is the default and hot now comes from money.
+// ---- CRM sync ----
+
+async function fetchHeat() {
+  const r = await apiFetch('/messenger/heat');
+  heatMap.clear();
+  heatByName.clear();
+  for(const it of r.items || []) {
+    const heat = it.heat as Heat;
+    if(it.telegram_id) heatMap.set(String(it.telegram_id), heat);
+    else if(it.username) heatByName.set(String(it.username).toLowerCase(), heat);
+  }
+  applyAllRings();
+  updateFabRing();
+  await reconcileHeatFolders();
+}
+
+// Never dropped: a call during a request asks for one more round after it, so the state always ends fresh.
+let heatPromise: Promise<void> | null = null;
+let heatAgain = false;
+function refreshHeat(): Promise<void> {
+  if(!getKey()) return Promise.resolve();
+  if(heatPromise) { heatAgain = true; return heatPromise; }
+  heatPromise = (async() => {
+    do {
+      heatAgain = false;
+      try { await fetchHeat(); } catch(e) { /* offline / bad key — keep the last known state */ }
+    } while(heatAgain);
+  })().finally(() => { heatPromise = null; });
+  return heatPromise;
+}
+
+// One-time: "warm" marks kept per-browser before the CRM held them. Cold is the default and hot comes
+// from money, so only warm carries over.
 const HEAT_MIGRATED_KEY = 'nykiss_heat_to_crm_migrated';
 async function migrateLegacyHeat() {
   try {
@@ -151,14 +270,6 @@ async function migrateLegacyHeat() {
     }
     localStorage.setItem(HEAT_MIGRATED_KEY, '1');
   } catch(e) {}
-}
-
-async function setWarm(m: {telegram_id: number; username: string | null}, warm: boolean) {
-  await apiFetch('/messenger/heat', {
-    method: 'POST',
-    body: JSON.stringify({telegram_id: m.telegram_id, username: m.username, warm})
-  });
-  await refreshHeat();
 }
 
 // ---- key storage -------------------------------------------------------------
@@ -227,6 +338,8 @@ function injectStyle() {
 .nykiss-qb__fab[data-heat="hot"]  { box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 3px #E05A20; }
 
 .nykiss-qb__heat { display:flex; gap:8px; align-items:center; padding:8px 6px 4px; }
+.nykiss-qb__heat-label { font-size:11px; opacity:.45; text-transform:uppercase; letter-spacing:.06em; flex:1; }
+.nykiss-qb__err { font-size:12px; color:#f0a9a0; padding:6px 4px 0; line-height:1.35; }
 .nykiss-qb__heat-pill { padding:5px 11px; border-radius:20px; font-size:12.5px; font-weight:600; cursor:pointer;
   color:inherit; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.12); transition:all .15s; }
 .nykiss-qb__heat-pill:hover { opacity:.85; }
@@ -317,30 +430,111 @@ async function promptConnect() {
   refreshBadge();
 }
 
+function setErr(errEl: HTMLElement, msg: string) {
+  errEl.textContent = msg;
+  errEl.style.display = msg ? '' : 'none';
+}
+
+function errText(e: any): string {
+  if(e?.message === 'bad-key') return 'Ключ слетел — подключись заново.';
+  if(e?.message === 'http-404') return 'Сначала добавь мамонта в CRM.';
+  return 'Не получилось, попробуй ещё раз.';
+}
+
 // --- add мамонт ---
-async function addMammoth(btn: HTMLButtonElement) {
+async function addMammoth(btn: HTMLButtonElement, errEl: HTMLElement) {
   const m = await getOpenMammoth();
-  if(!m) { window.alert('Открой личный чат с мамонтом.'); return; }
+  if(!m) { setErr(errEl, 'Открой личный чат с мамонтом.'); return; }
   btn.disabled = true;
   btn.textContent = 'Добавляю…';
+  setErr(errEl, '');
   try {
-    const r = await apiFetch('/messenger/mammoths', {
+    await apiFetch('/messenger/mammoths', {
       method: 'POST',
       body: JSON.stringify({nickname: m.nickname, telegram_username: m.username, telegram_id: m.telegram_id})
     });
-    btn.textContent = r?.already ? '✓ Уже у тебя' : '✓ Добавлен';
     refreshBadge();
-    setTimeout(() => { if(rootEl.classList.contains('is-open')) renderMenu(); }, 1200);
+    refreshHeat();
+    renderMenu(); // the temperature picker appears right away
   } catch(e: any) {
-    if(e?.message === 'bad-key') { window.alert('Ключ слетел — подключись заново.'); renderMenu(); }
-    else { btn.disabled = false; btn.textContent = '➕ Добавить мамонта'; window.alert('Не удалось добавить.'); }
+    btn.disabled = false;
+    btn.textContent = '➕ Добавить мамонта';
+    setErr(errEl, e?.message === 'bad-key' ? errText(e) : 'Не удалось добавить.');
   }
 }
 
-// --- menu render ---
-async function renderMenu() {
-  menuEl.textContent = '';
+// Temperature of an attached мамонт: cold (default) / warm (manual); hot only shown — it comes from money.
+function buildHeatRow(m: OpenMammoth, current: Heat, errEl: HTMLElement): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'nykiss-qb__heat';
+  const label = document.createElement('span');
+  label.className = 'nykiss-qb__heat-label';
+  label.textContent = 'Температура';
+  row.append(label);
 
+  if(current === 'hot') {
+    const hot = document.createElement('span');
+    hot.className = 'nykiss-qb__heat-auto';
+    hot.textContent = '💰 Горячий · оплатил';
+    hot.title = 'Ставится сам, когда приходит оплата';
+    row.append(hot);
+    return row;
+  }
+
+  const pills: Partial<Record<Heat, HTMLButtonElement>> = {};
+  const paint = (h: Heat) => {
+    current = h;
+    (Object.keys(pills) as Heat[]).forEach(k => pills[k].classList.toggle('is-active', k === h));
+  };
+  const lock = (on: boolean) => (Object.values(pills) as HTMLButtonElement[]).forEach(b => { b.disabled = on; });
+  const peerKey = String(m.telegram_id);
+
+  ([['cold', '🧊 Холодный'], ['warm', '🔥 Тёплый']] as const).forEach(([key, text]) => {
+    const b = document.createElement('button');
+    b.className = 'nykiss-qb__heat-pill' + (current === key ? ' is-active' : '');
+    b.dataset.heat = key;
+    b.textContent = text;
+    pills[key] = b;
+    b.addEventListener('click', async e => {
+      e.stopPropagation();
+      if(current === key) return;
+      const prev = current;
+      setErr(errEl, '');
+      lock(true);
+      paint(key); // optimistic: the ring and the pill answer at once
+      if(key === 'cold') heatMap.delete(peerKey); else heatMap.set(peerKey, key);
+      applyAllRings();
+      updateFabRing(m.telegram_id);
+      try {
+        const r = await apiFetch('/messenger/heat', {
+          method: 'POST',
+          body: JSON.stringify({telegram_id: m.telegram_id, username: m.username, warm: key === 'warm'})
+        });
+        if(r?.heat === 'hot') { heatMap.set(peerKey, 'hot'); renderMenu(); }
+        refreshHeat(); // folders
+      } catch(err: any) {
+        paint(prev); // roll back
+        if(prev === 'cold') heatMap.delete(peerKey); else heatMap.set(peerKey, prev);
+        applyAllRings();
+        updateFabRing(m.telegram_id);
+        setErr(errEl, errText(err));
+      } finally { lock(false); }
+    });
+    row.append(b);
+  });
+  return row;
+}
+
+// --- menu render ---
+// Only the newest call may touch the menu: it awaits the chat and the CRM, and a stale one would
+// append a second status block into the fresh menu.
+let renderSeq = 0;
+async function renderMenu() {
+  const seq = ++renderSeq;
+  const m = getKey() ? await getOpenMammoth() : null;
+  if(seq !== renderSeq) return;
+
+  menuEl.textContent = '';
   const title = document.createElement('div');
   title.className = 'nykiss-qb__title';
   title.textContent = 'NYKISS CRM';
@@ -358,72 +552,46 @@ async function renderMenu() {
     return;
   }
 
-  const m = await getOpenMammoth();
+  const err = document.createElement('div');
+  err.className = 'nykiss-qb__err';
+  err.style.display = 'none';
+
   if(!m) {
     const hint = document.createElement('div');
     hint.className = 'nykiss-qb__hint';
     hint.textContent = 'Открой личный чат с мамонтом, чтобы добавить его в CRM.';
     menuEl.append(hint);
   } else {
-    // status block
     const status = document.createElement('div');
     status.className = 'nykiss-qb__status';
     status.innerHTML = '<span class="muted">Проверяю…</span>';
-    menuEl.append(status);
+    const slot = document.createElement('div');
+    menuEl.append(status, slot, err);
 
-    // Temperature: cold is default, warm is manual, hot is automatic (paid).
-    const heatRow = document.createElement('div');
-    heatRow.className = 'nykiss-qb__heat';
-    const heatLabel = document.createElement('span');
-    heatLabel.style.cssText = 'font-size:11px;opacity:.45;text-transform:uppercase;letter-spacing:.06em;flex:1;';
-    heatLabel.textContent = 'Температура';
-    heatRow.append(heatLabel);
-    const current = heatOf(m.telegram_id);
-    if(current === 'hot') {
-      const hot = document.createElement('span');
-      hot.className = 'nykiss-qb__heat-auto';
-      hot.textContent = '💰 Горячий · оплатил';
-      hot.title = 'Ставится сам, когда приходит оплата';
-      heatRow.append(hot);
-    } else {
-      ([['cold', '🧊 Холодный'], ['warm', '🔥 Тёплый']] as const).forEach(([key, label]) => {
-        const b = document.createElement('button');
-        b.className = 'nykiss-qb__heat-pill' + (current === key ? ' is-active' : '');
-        b.dataset.heat = key;
-        b.textContent = label;
-        b.addEventListener('click', async e => {
-          e.stopPropagation();
-          if(current === key) return;
-          b.disabled = true;
-          try { await setWarm(m, key === 'warm'); } catch(err) { /* bad key / not attached */ }
-          renderMenu();
-        });
-        heatRow.append(b);
-      });
-    }
-    menuEl.append(heatRow);
-
-    const add = document.createElement('button');
-    add.className = 'nykiss-qb__btn nykiss-qb__btn-primary';
-    add.textContent = '➕ Добавить мамонта';
-    add.addEventListener('click', (e) => { e.stopPropagation(); addMammoth(add); });
-    menuEl.append(add);
-
+    let b: any;
     try {
-      const b = await apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
-      if(b?.mine) {
-        status.innerHTML = `<b>${escapeHtml(b.nickname || m.nickname)}</b> — твой${b.taken_by_other ? ' <span class="muted">(есть и у других)</span>' : ''}<br>` +
-          `${escapeHtml(b.status_label || '')} · занёс <b>$${(b.total_deposited || 0)}</b>`;
-        add.textContent = '✓ Уже у тебя';
-        add.disabled = true;
-      } else if(b?.taken_by_other) {
-        status.innerHTML = `<b class="muted">Чужой мамонт</b><br><span class="muted">Привязан у другого воркера</span>`;
-      } else {
-        status.innerHTML = `<span class="muted">Не в CRM.</span> <b>${escapeHtml(m.nickname)}</b>`;
-      }
+      b = await apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
     } catch(e: any) {
-      if(e?.message === 'bad-key') { status.innerHTML = '<span class="muted">Ключ слетел — подключись заново.</span>'; }
-      else { status.innerHTML = '<span class="muted">CRM недоступна.</span>'; }
+      if(seq !== renderSeq) return;
+      status.innerHTML = `<span class="muted">${e?.message === 'bad-key' ? 'Ключ слетел — подключись заново.' : 'CRM недоступна.'}</span>`;
+      return;
+    }
+    if(seq !== renderSeq) return;
+
+    if(b?.mine) {
+      status.innerHTML = `<b>${escapeHtml(b.nickname || m.nickname)}</b> — твой${b.taken_by_other ? ' <span class="muted">(есть и у других)</span>' : ''}<br>` +
+        `${escapeHtml(b.status_label || '')} · занёс <b>$${(b.total_deposited || 0)}</b>`;
+      slot.append(buildHeatRow(m, (b.heat || 'cold') as Heat, err));
+    } else if(b?.taken_by_other) {
+      status.innerHTML = '<b class="muted">Чужой мамонт</b><br><span class="muted">Привязан у другого воркера</span>';
+    } else {
+      // not in the CRM: only «Добавить» — the temperature appears once he is attached
+      status.innerHTML = `<span class="muted">Не в CRM.</span> <b>${escapeHtml(m.nickname)}</b>`;
+      const add = document.createElement('button');
+      add.className = 'nykiss-qb__btn nykiss-qb__btn-primary';
+      add.textContent = '➕ Добавить мамонта';
+      add.addEventListener('click', (e) => { e.stopPropagation(); addMammoth(add, err); });
+      slot.append(add);
     }
   }
 
@@ -481,10 +649,8 @@ function sync() {
     if(getKey()) refreshHeat();
   }
 
-  // Re-apply rings every ~3s to catch chats that were already in DOM
-  if(syncTick % 5 === 0) {
-    applyAllRings();
-  }
+  // safety net for avatars that were rendered before the observer attached
+  if(syncTick % 25 === 0) applyAllRings();
 }
 
 export function initQuickBubble() {
@@ -514,7 +680,7 @@ export function initQuickBubble() {
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeMenu(); });
 
   sync();
-  watchDialogList();
+  watchAvatars();
   window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
   window.setInterval(refreshHeat, 20000);
   window.setInterval(sync, 600);

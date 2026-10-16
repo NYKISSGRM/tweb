@@ -476,23 +476,64 @@
   pointer-events: none;
 }
 
-// NYKISS Heat Pulse — colored ring on dialog avatars in chat list
+// NYKISS temperature ring — on every avatar that carries a peer id (chat list, search, topbar, profile).
+// Cold has no ring. The size comes from --nykiss-ring / --nykiss-glow so a scaled avatar can compensate.
 @keyframes nykiss-avatar-hot {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(#E05A20, 0.95), 0 0 8px rgba(#E05A20, 0.45); }
-  50%       { box-shadow: 0 0 0 3px rgba(#FF6B30, 1),    0 0 18px rgba(#E05A20, 0.7); }
+  0%, 100% {
+    box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#E05A20, 0.95),
+      0 0 var(--nykiss-glow, 8px) rgba(#E05A20, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#FF6B30, 1),
+      0 0 calc(var(--nykiss-glow, 8px) * 2.2) rgba(#E05A20, 0.7);
+  }
 }
 
-.dialog-avatar {
-  &[data-heat="cold"] {
-    box-shadow: 0 0 0 3px rgba(#2A6B9A, 0.9), 0 0 8px rgba(#2A6B9A, 0.35);
-  }
+.avatar[data-heat] {
   &[data-heat="warm"] {
-    box-shadow: 0 0 0 3px rgba(#C9A227, 1), 0 0 10px rgba(#C9A227, 0.5);
+    box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#C9A227, 1),
+      0 0 calc(var(--nykiss-glow, 8px) * 1.25) rgba(#C9A227, 0.5);
   }
+
   &[data-heat="hot"] {
-    box-shadow: 0 0 0 3px rgba(#E05A20, 0.95), 0 0 10px rgba(#E05A20, 0.45);
+    box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#E05A20, 0.95),
+      0 0 var(--nykiss-glow, 8px) rgba(#E05A20, 0.45);
+
     @media (prefers-reduced-motion: no-preference) {
       animation: nykiss-avatar-hot 1.4s ease-in-out infinite;
     }
+  }
+}
+
+// small avatars: a thinner ring
+.person-avatar[data-heat],
+.bubbles-group-avatar[data-heat] {
+  --nykiss-ring: 2px;
+  --nykiss-glow: 6px;
+}
+
+// the stories ring already circles the avatar — two rings on one photo look dirty
+.avatar.has-stories[data-heat] {
+  box-shadow: none;
+  animation: none;
+}
+
+// the profile carousel is not an `.avatar` itself: its container carries the attribute and the ring is
+// drawn on the active photo (collapsed header only — expanded, the photo is a wide banner)
+.profile-container.is-collapsed .profile-avatars-container[data-heat] .profile-avatars-avatar.active {
+  // the photo is scaled to 120/400, so the ring is drawn 1/0.3 thicker to land at ~3px
+  --nykiss-ring: 10px;
+  --nykiss-glow: 27px;
+}
+
+.profile-container.is-collapsed .profile-avatars-container[data-heat="warm"] .profile-avatars-avatar.active {
+  box-shadow: 0 0 0 var(--nykiss-ring) rgba(#C9A227, 1), 0 0 calc(var(--nykiss-glow) * 1.25) rgba(#C9A227, 0.5);
+}
+
+.profile-container.is-collapsed .profile-avatars-container[data-heat="hot"] .profile-avatars-avatar.active {
+  box-shadow: 0 0 0 var(--nykiss-ring) rgba(#E05A20, 0.95), 0 0 var(--nykiss-glow) rgba(#E05A20, 0.45);
+
+  @media (prefers-reduced-motion: no-preference) {
+    animation: nykiss-avatar-hot 1.4s ease-in-out infinite;
   }
 }
