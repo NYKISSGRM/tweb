@@ -19,32 +19,32 @@ const KEY_LS = 'nykiss_messenger_key';
 
 // ---- Heat Pulse ---------------------------------------------------------------
 
-const HEAT_KEY = (peerId: number | string) => `nykiss_heat_${peerId}`;
-const HEAT_NAME_KEY = (peerId: number | string) => `nykiss_heat_name_${peerId}`;
+// Temperature lives in the CRM (shared across browsers, team lead sees everyone):
+//   cold — default, nothing shown   warm — operator marks "ready to pay"
+//   hot  — set by the server itself once TRICK reports a deposit (never manual)
+type Heat = 'cold' | 'warm' | 'hot';
+const heatMap = new Map<string, Heat>(); // telegram_id (= tweb user peerId) → heat
 
-const HEAT_OPTS = [
-  {key: 'none', color: 'rgba(255,255,255,0.12)', border: 'rgba(255,255,255,0.3)', emoji: '·'},
-  {key: 'cold', color: '#2A6B9A', border: '#2A6B9A', emoji: '🧊'},
-  {key: 'warm', color: '#C9A227', border: '#C9A227', emoji: '🔥'},
-  {key: 'hot',  color: '#E05A20', border: '#E05A20', emoji: '💰'},
-] as const;
+function heatOf(peerId: number | string | null | undefined): Heat {
+  return (peerId != null && heatMap.get(String(peerId))) || 'cold';
+}
 
 function applyAllRings() {
   document.querySelectorAll<HTMLElement>('[data-peer-id]').forEach(el => {
     const peerId = el.dataset.peerId;
     const avatarEl = el.querySelector<HTMLElement>('.dialog-avatar');
     if(!avatarEl || !peerId) return;
-    const status = localStorage.getItem(HEAT_KEY(peerId));
-    if(status) avatarEl.dataset.heat = status;
-    else delete avatarEl.dataset.heat;
+    const heat = heatOf(peerId);
+    if(heat === 'cold') delete avatarEl.dataset.heat;
+    else avatarEl.dataset.heat = heat;
   });
 }
 
 function updateFabRing(telegramId?: number | null) {
   if(!fabEl) return;
-  const pid = telegramId ?? currentPeerId;
-  const status = pid ? (localStorage.getItem(HEAT_KEY(pid)) ?? 'none') : 'none';
-  fabEl.dataset.heat = status;
+  const heat = heatOf(telegramId ?? currentPeerId);
+  if(heat === 'cold') delete fabEl.dataset.heat;
+  else fabEl.dataset.heat = heat;
 }
 
 let ringObserver: MutationObserver | null = null;
@@ -57,77 +57,108 @@ function watchDialogList() {
   applyAllRings();
 }
 
-// ---- Heat folders: real Telegram folders «Холодные» / «Горячие» ---------------
-// Setting a status puts the chat into the matching folder (created on first use) and takes it
-// out of the other one. Folders live on the Telegram account, so they sync to every device.
+// ---- Heat folders: real Telegram folders «Тёплые» / «Горячие» -----------------
+// Mirrors the CRM temperature into folders (created on first use). Cold chats have no folder.
+// Folders live on the Telegram account, so they follow the operator to every device.
 
 const HEAT_FOLDERS = {
-  cold: {title: 'Холодные', emoticon: '🧊'},
+  warm: {title: 'Тёплые', emoticon: '🔥'},
   hot: {title: 'Горячие', emoticon: '💰'}
 } as const;
-const HEAT_MIGRATED_KEY = 'nykiss_heat_folders_migrated';
+const FOLDER_CAP = 100; // Telegram: max chats per folder
+const LEGACY_FOLDER_TITLE = 'Холодные'; // the one we created earlier; cold has no folder now
 
 let folderQueue: Promise<void> = Promise.resolve();
 
-function findHeatFolder(filters: any[], title: string) {
+function findFolder(filters: any[], title: string) {
   return filters.find(f => f._ === 'dialogFilter' && f.title?.text === title);
 }
 
-// Serialized: two quick clicks must not both create the same folder.
-function syncHeatFolders(changes: Array<{peerId: number | string, status: string}>) {
+// Serialized: concurrent passes must not both create the same folder.
+function reconcileHeatFolders() {
   folderQueue = folderQueue.then(async() => {
-    const {filtersStorage, appPeersManager} = appImManager.managers;
-    const peerIds = changes.map(c => +c.peerId);
-    const wanted = (key: 'cold' | 'hot') => changes.filter(c => c.status === key).map(c => +c.peerId);
+    const {filtersStorage, appPeersManager, appUsersManager} = appImManager.managers;
+    let filters: any[] = await filtersStorage.getDialogFilters();
 
-    for(const key of ['cold', 'hot'] as const) {
+    const legacy = findFolder(filters, LEGACY_FOLDER_TITLE);
+    if(legacy && legacy.emoticon === '🧊') await filtersStorage.updateDialogFilter(legacy, true);
+
+    for(const key of ['warm', 'hot'] as const) {
       const def = HEAT_FOLDERS[key];
-      const toAdd = wanted(key);
-      let filter: any = findHeatFolder(await filtersStorage.getDialogFilters(), def.title);
-      if(!filter && !toAdd.length) continue;
+      const filter: any = findFolder(filters, def.title);
+      const current: number[] = filter?.includePeerIds || [];
 
-      const inputPeers = await Promise.all(toAdd.map(id => appPeersManager.getInputPeerById(id)));
+      // keep what the user put there by hand; drop CRM chats whose temperature moved on
+      const kept = current.filter(id => !heatMap.has(String(id)) || heatMap.get(String(id)) === key);
+      const want = [...heatMap].filter(([, h]) => h === key).map(([id]) => +id);
+      const next = [...kept];
+      for(const id of want) {
+        if(next.length >= FOLDER_CAP) break;
+        if(next.includes(id)) continue;
+        const user: any = await appUsersManager.getUser(id);
+        if(!user || !user.access_hash) continue; // no chat/contact access yet — can't be put in a folder
+        next.push(id);
+      }
+
+      const unchanged = next.length === current.length && next.every(id => current.includes(id));
+      if(unchanged || (!filter && !next.length)) continue;
+
+      const inputPeers = await Promise.all(next.map(id => appPeersManager.getInputPeerById(id)));
       if(!filter) {
         await filtersStorage.createDialogFilter({
           _: 'dialogFilter', pFlags: {}, id: 0, emoticon: def.emoticon,
           title: {_: 'textWithEntities', text: def.title, entities: []},
           pinned_peers: [], include_peers: inputPeers, exclude_peers: [],
-          pinnedPeerIds: [], includePeerIds: toAdd, excludePeerIds: []
+          pinnedPeerIds: [], includePeerIds: next, excludePeerIds: []
         } as any);
-        continue;
+      } else {
+        await filtersStorage.updateDialogFilter({...filter, includePeerIds: next, include_peers: inputPeers});
       }
-
-      const drop = new Set(peerIds);
-      const keepIds: number[] = (filter.includePeerIds || []).filter((id: number) => !drop.has(id));
-      const keepPeers = (filter.include_peers || []).filter((_: any, i: number) => !drop.has(filter.includePeerIds[i]));
-      const next = {
-        ...filter,
-        includePeerIds: [...keepIds, ...toAdd],
-        include_peers: [...keepPeers, ...inputPeers]
-      };
-      if(next.includePeerIds.length !== (filter.includePeerIds || []).length ||
-        toAdd.some(id => !(filter.includePeerIds || []).includes(id))) {
-        await filtersStorage.updateDialogFilter(next);
-      }
+      filters = await filtersStorage.getDialogFilters();
     }
   }).catch(e => console.warn('[nykiss] heat folders:', e));
   return folderQueue;
 }
 
-// One-time: statuses set before folders existed get their folders now.
-function migrateHeatToFolders() {
+let heatInFlight = false;
+async function refreshHeat() {
+  if(!getKey() || heatInFlight) return;
+  heatInFlight = true;
   try {
-    if(localStorage.getItem(HEAT_MIGRATED_KEY)) return;
-    const changes: Array<{peerId: string, status: string}> = [];
+    const r = await apiFetch('/messenger/heat');
+    heatMap.clear();
+    for(const it of r.items || []) heatMap.set(String(it.telegram_id), it.heat);
+    applyAllRings();
+    updateFabRing();
+    await reconcileHeatFolders();
+  } catch(e) { /* offline / bad key — keep last known state */ } finally { heatInFlight = false; }
+}
+
+// One-time: statuses kept per-browser before the CRM held them. Only "warm" carries over:
+// cold is the default and hot now comes from money.
+const HEAT_MIGRATED_KEY = 'nykiss_heat_to_crm_migrated';
+async function migrateLegacyHeat() {
+  try {
+    if(localStorage.getItem(HEAT_MIGRATED_KEY) || !getKey()) return;
+    const legacy: string[] = [];
     for(let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i) || '';
       const m = /^nykiss_heat_(-?\d+)$/.exec(k);
-      const v = m && localStorage.getItem(k);
-      if(m && (v === 'cold' || v === 'hot')) changes.push({peerId: m[1], status: v});
+      if(m && localStorage.getItem(k) === 'warm') legacy.push(m[1]);
+    }
+    for(const id of legacy) {
+      try { await apiFetch('/messenger/heat', {method: 'POST', body: JSON.stringify({telegram_id: +id, warm: true})}); } catch(e) { /* not our мамонт */ }
     }
     localStorage.setItem(HEAT_MIGRATED_KEY, '1');
-    if(changes.length) syncHeatFolders(changes);
   } catch(e) {}
+}
+
+async function setWarm(m: {telegram_id: number; username: string | null}, warm: boolean) {
+  await apiFetch('/messenger/heat', {
+    method: 'POST',
+    body: JSON.stringify({telegram_id: m.telegram_id, username: m.username, warm})
+  });
+  await refreshHeat();
 }
 
 // ---- key storage -------------------------------------------------------------
@@ -196,12 +227,14 @@ function injectStyle() {
 .nykiss-qb__fab[data-heat="hot"]  { box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 3px #E05A20; }
 
 .nykiss-qb__heat { display:flex; gap:8px; align-items:center; padding:8px 6px 4px; }
-.nykiss-qb__heat-dot { width:28px; height:28px; border-radius:50%; border:2px solid transparent;
-  cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center;
-  transition:transform .15s, box-shadow .15s; flex-shrink:0; }
-.nykiss-qb__heat-dot:hover { transform:scale(1.15); }
-.nykiss-qb__heat-dot.is-active { transform:scale(1.28) !important;
-  box-shadow:0 0 0 2.5px rgba(255,255,255,0.4); }
+.nykiss-qb__heat-pill { padding:5px 11px; border-radius:20px; font-size:12.5px; font-weight:600; cursor:pointer;
+  color:inherit; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.12); transition:all .15s; }
+.nykiss-qb__heat-pill:hover { opacity:.85; }
+.nykiss-qb__heat-pill:disabled { opacity:.5; cursor:default; }
+.nykiss-qb__heat-pill[data-heat="cold"].is-active { background:rgba(42,107,154,.25); border-color:#2A6B9A; color:#5ba8d4; }
+.nykiss-qb__heat-pill[data-heat="warm"].is-active { background:rgba(201,162,39,.25); border-color:#C9A227; color:#e9c860; }
+.nykiss-qb__heat-auto { padding:5px 11px; border-radius:20px; font-size:12.5px; font-weight:700;
+  background:rgba(224,90,32,.25); border:1.5px solid #E05A20; color:#FF6B30; }
 
 /* status chip above the FAB — reflects CRM status of the open chat */
 .nykiss-qb__chip { position: absolute; right: 0; bottom: 58px; white-space: nowrap;
@@ -338,36 +371,36 @@ async function renderMenu() {
     status.innerHTML = '<span class="muted">Проверяю…</span>';
     menuEl.append(status);
 
-    // Heat Pulse — status picker
+    // Temperature: cold is default, warm is manual, hot is automatic (paid).
     const heatRow = document.createElement('div');
     heatRow.className = 'nykiss-qb__heat';
     const heatLabel = document.createElement('span');
     heatLabel.style.cssText = 'font-size:11px;opacity:.45;text-transform:uppercase;letter-spacing:.06em;flex:1;';
-    heatLabel.textContent = 'Статус';
+    heatLabel.textContent = 'Температура';
     heatRow.append(heatLabel);
-    const currentHeat = localStorage.getItem(HEAT_KEY(m.telegram_id)) ?? 'none';
-    HEAT_OPTS.forEach(opt => {
-      const dot = document.createElement('button');
-      dot.className = 'nykiss-qb__heat-dot' + (currentHeat === opt.key ? ' is-active' : '');
-      dot.style.cssText = `background:${opt.color};border-color:${opt.border};`;
-      dot.title = opt.key;
-      dot.textContent = opt.emoji;
-      dot.addEventListener('click', e => {
-        e.stopPropagation();
-        if(opt.key === 'none') {
-          localStorage.removeItem(HEAT_KEY(m.telegram_id));
-          localStorage.removeItem(HEAT_NAME_KEY(m.telegram_id));
-        } else {
-          localStorage.setItem(HEAT_KEY(m.telegram_id), opt.key);
-          localStorage.setItem(HEAT_NAME_KEY(m.telegram_id), m.nickname || String(m.telegram_id));
-        }
-        applyAllRings();
-        updateFabRing(m.telegram_id);
-        syncHeatFolders([{peerId: m.telegram_id, status: opt.key}]);
-        renderMenu();
+    const current = heatOf(m.telegram_id);
+    if(current === 'hot') {
+      const hot = document.createElement('span');
+      hot.className = 'nykiss-qb__heat-auto';
+      hot.textContent = '💰 Горячий · оплатил';
+      hot.title = 'Ставится сам, когда приходит оплата';
+      heatRow.append(hot);
+    } else {
+      ([['cold', '🧊 Холодный'], ['warm', '🔥 Тёплый']] as const).forEach(([key, label]) => {
+        const b = document.createElement('button');
+        b.className = 'nykiss-qb__heat-pill' + (current === key ? ' is-active' : '');
+        b.dataset.heat = key;
+        b.textContent = label;
+        b.addEventListener('click', async e => {
+          e.stopPropagation();
+          if(current === key) return;
+          b.disabled = true;
+          try { await setWarm(m, key === 'warm'); } catch(err) { /* bad key / not attached */ }
+          renderMenu();
+        });
+        heatRow.append(b);
       });
-      heatRow.append(dot);
-    });
+    }
     menuEl.append(heatRow);
 
     const add = document.createElement('button');
@@ -445,6 +478,7 @@ function sync() {
     if(rootEl.classList.contains('is-open')) renderMenu();
     refreshBadge();
     updateFabRing();
+    if(getKey()) refreshHeat();
   }
 
   // Re-apply rings every ~3s to catch chats that were already in DOM
@@ -481,6 +515,7 @@ export function initQuickBubble() {
 
   sync();
   watchDialogList();
-  window.setTimeout(migrateHeatToFolders, 8000);
+  window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
+  window.setInterval(refreshHeat, 20000);
   window.setInterval(sync, 600);
 }
