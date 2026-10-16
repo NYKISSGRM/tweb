@@ -16,7 +16,7 @@ import rootScope from '@lib/rootScope';
 import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUsernames';
 import {planFolders, FOLDER_CAP, LEGACY_HEAT_FOLDER_TITLES, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
 
-const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
+export const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
 const KEY_LS = 'nykiss_messenger_key';
 
 // ---- Heat Pulse ---------------------------------------------------------------
@@ -309,10 +309,10 @@ async function migrateLegacyHeat() {
 
 // ---- key storage -------------------------------------------------------------
 
-function getKey(): string {
+export function getKey(): string {
   try { return localStorage.getItem(KEY_LS) || ''; } catch(e) { return ''; }
 }
-function setKey(k: string | null) {
+export function setKey(k: string | null) {
   try { k ? localStorage.setItem(KEY_LS, k) : localStorage.removeItem(KEY_LS); } catch(e) {}
 }
 
@@ -568,19 +568,25 @@ function openMenu() {
 function toggleMenu() { rootEl.classList.contains('is-open') ? closeMenu() : openMenu(); }
 
 // --- connect flow ---
-async function promptConnect() {
+export async function promptConnect(): Promise<boolean> {
   const key = window.prompt('Вставь ключ NYKISS Gram (Настройки → NYKISS Gram — ключ в мини-аппе):');
-  if(!key || !key.trim()) return;
+  if(!key || !key.trim()) return false;
   setKey(key.trim());
+  let ok = true;
   try {
     await apiFetch('/messenger/whoami');
   } catch(e) {
+    ok = false;
     setKey('');
     window.alert('Ключ не подошёл. Проверь и вставь заново.');
   }
-  renderMenu();
-  refreshBadge();
-  refreshHeat();
+  // quick bubble not initialised yet (opened from the sidebar before it) → nothing to refresh
+  if(menuEl) {
+    renderMenu();
+    refreshBadge();
+    refreshHeat();
+  }
+  return ok;
 }
 
 function setErr(errEl: HTMLElement, msg: string) {
@@ -899,6 +905,7 @@ export function initQuickBubble() {
   sync();
   watchAvatars();
   window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
+  window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
   window.setInterval(refreshHeat, 20000);
   window.setInterval(sync, 600);
 }
