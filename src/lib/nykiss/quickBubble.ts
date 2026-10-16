@@ -30,7 +30,6 @@ const HEAT_OPTS = [
 ] as const;
 
 function applyAllRings() {
-  const active = getActiveFilter();
   document.querySelectorAll<HTMLElement>('[data-peer-id]').forEach(el => {
     const peerId = el.dataset.peerId;
     const avatarEl = el.querySelector<HTMLElement>('.dialog-avatar');
@@ -38,13 +37,6 @@ function applyAllRings() {
     const status = localStorage.getItem(HEAT_KEY(peerId));
     if(status) avatarEl.dataset.heat = status;
     else delete avatarEl.dataset.heat;
-    // In-place heat filter: hide chat-list rows that don't match the active chip.
-    // Re-derived every pass (and on list mutation) so it survives tweb's row recycling.
-    if(active && el.closest('.chatlist')) {
-      el.classList.toggle('nykiss-filtered-out', status !== active);
-    } else {
-      el.classList.remove('nykiss-filtered-out');
-    }
   });
 }
 
@@ -56,10 +48,6 @@ function updateFabRing(telegramId?: number | null) {
 }
 
 let ringObserver: MutationObserver | null = null;
-const FILTER_KEY = 'nykiss_heat_filter';
-let filterInited = false;
-let filterChipEl: HTMLElement | null = null;
-
 function watchDialogList() {
   if(ringObserver) return;
   const target = document.getElementById('chatlist-container');
@@ -69,63 +57,77 @@ function watchDialogList() {
   applyAllRings();
 }
 
-// ---- Hot Filter Chips (3-way: cold / warm / hot) -----------------------------
+// ---- Heat folders: real Telegram folders «Холодные» / «Горячие» ---------------
+// Setting a status puts the chat into the matching folder (created on first use) and takes it
+// out of the other one. Folders live on the Telegram account, so they sync to every device.
 
-const HEAT_FILTERS = [
-  {key: 'cold', emoji: '🧊', label: 'Холодные'},
-  {key: 'hot',  emoji: '💰', label: 'Горячие'},
-] as const;
+const HEAT_FOLDERS = {
+  cold: {title: 'Холодные', emoticon: '🧊'},
+  hot: {title: 'Горячие', emoticon: '💰'}
+} as const;
+const HEAT_MIGRATED_KEY = 'nykiss_heat_folders_migrated';
 
-type HeatLevel = typeof HEAT_FILTERS[number]['key'];
-let chipBtns: HTMLButtonElement[] = [];
+let folderQueue: Promise<void> = Promise.resolve();
 
-function getActiveFilter(): HeatLevel | '' {
-  const v = localStorage.getItem(FILTER_KEY);
-  return (v === 'cold' || v === 'hot') ? v : '';
+function findHeatFolder(filters: any[], title: string) {
+  return filters.find(f => f._ === 'dialogFilter' && f.title?.text === title);
 }
 
-function setActiveFilter(key: HeatLevel | '') {
-  if(key) localStorage.setItem(FILTER_KEY, key);
-  else localStorage.removeItem(FILTER_KEY);
-  // In-place filter: applyAllRings re-derives rings AND row hiding from current state.
-  // No overlay — the real chat rows stay in the list, chips stay clickable, no trap.
-  applyAllRings();
-  updateHeatChipBtns();
+// Serialized: two quick clicks must not both create the same folder.
+function syncHeatFolders(changes: Array<{peerId: number | string, status: string}>) {
+  folderQueue = folderQueue.then(async() => {
+    const {filtersStorage, appPeersManager} = appImManager.managers;
+    const peerIds = changes.map(c => +c.peerId);
+    const wanted = (key: 'cold' | 'hot') => changes.filter(c => c.status === key).map(c => +c.peerId);
+
+    for(const key of ['cold', 'hot'] as const) {
+      const def = HEAT_FOLDERS[key];
+      const toAdd = wanted(key);
+      let filter: any = findHeatFolder(await filtersStorage.getDialogFilters(), def.title);
+      if(!filter && !toAdd.length) continue;
+
+      const inputPeers = await Promise.all(toAdd.map(id => appPeersManager.getInputPeerById(id)));
+      if(!filter) {
+        await filtersStorage.createDialogFilter({
+          _: 'dialogFilter', pFlags: {}, id: 0, emoticon: def.emoticon,
+          title: {_: 'textWithEntities', text: def.title, entities: []},
+          pinned_peers: [], include_peers: inputPeers, exclude_peers: [],
+          pinnedPeerIds: [], includePeerIds: toAdd, excludePeerIds: []
+        } as any);
+        continue;
+      }
+
+      const drop = new Set(peerIds);
+      const keepIds: number[] = (filter.includePeerIds || []).filter((id: number) => !drop.has(id));
+      const keepPeers = (filter.include_peers || []).filter((_: any, i: number) => !drop.has(filter.includePeerIds[i]));
+      const next = {
+        ...filter,
+        includePeerIds: [...keepIds, ...toAdd],
+        include_peers: [...keepPeers, ...inputPeers]
+      };
+      if(next.includePeerIds.length !== (filter.includePeerIds || []).length ||
+        toAdd.some(id => !(filter.includePeerIds || []).includes(id))) {
+        await filtersStorage.updateDialogFilter(next);
+      }
+    }
+  }).catch(e => console.warn('[nykiss] heat folders:', e));
+  return folderQueue;
 }
 
-function updateHeatChipBtns() {
-  if(!chipBtns.length) return;
-  const active = getActiveFilter();
-  HEAT_FILTERS.forEach((f, i) => {
-    const btn = chipBtns[i];
-    if(!btn) return;
-    const count = document.querySelectorAll(`.dialog-avatar[data-heat="${f.key}"]`).length;
-    btn.textContent = count > 0 ? `${f.emoji} ${f.label} ${count}` : `${f.emoji} ${f.label}`;
-    btn.classList.toggle('is-active', active === f.key);
-    btn.style.opacity = (count === 0 && active !== f.key) ? '0.4' : '';
-  });
-}
-
-function buildHotFilterChip(overlay: HTMLElement) {
-  if(overlay.querySelector('.nykiss-heat-chip-row')) return;
-  const row = document.createElement('div');
-  row.className = 'nykiss-heat-chip-row';
-
-  chipBtns = HEAT_FILTERS.map(f => {
-    const btn = document.createElement('button');
-    btn.className = 'nykiss-heat-chip';
-    btn.dataset.filterKey = f.key;
-    btn.type = 'button';
-    btn.addEventListener('click', () => {
-      setActiveFilter(getActiveFilter() === f.key ? '' : f.key as HeatLevel);
-    });
-    row.append(btn);
-    return btn;
-  });
-
-  overlay.append(row);
-  applyAllRings();
-  updateHeatChipBtns();
+// One-time: statuses set before folders existed get their folders now.
+function migrateHeatToFolders() {
+  try {
+    if(localStorage.getItem(HEAT_MIGRATED_KEY)) return;
+    const changes: Array<{peerId: string, status: string}> = [];
+    for(let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i) || '';
+      const m = /^nykiss_heat_(-?\d+)$/.exec(k);
+      const v = m && localStorage.getItem(k);
+      if(m && (v === 'cold' || v === 'hot')) changes.push({peerId: m[1], status: v});
+    }
+    localStorage.setItem(HEAT_MIGRATED_KEY, '1');
+    if(changes.length) syncHeatFolders(changes);
+  } catch(e) {}
 }
 
 // ---- key storage -------------------------------------------------------------
@@ -240,18 +242,6 @@ function injectStyle() {
   text-overflow: ellipsis; line-height: 1.4; padding-top: 3px; max-width: 280px;
   opacity: .8; transition: color .2s; }
 
-/* Hot Filter Chips — 3 in a row */
-.nykiss-heat-chip-row { display: flex; padding: 6px 10px 4px; gap: 6px; flex-shrink: 0; }
-.nykiss-heat-chip { display: inline-flex; align-items: center; padding: 4px 11px;
-  border-radius: 20px; font-size: 12.5px; font-weight: 600; cursor: pointer;
-  background: rgba(255,255,255,.07); color: var(--secondary-text-color, rgba(255,255,255,.55));
-  border: 1.5px solid rgba(255,255,255,.12); transition: all .18s; user-select: none; white-space: nowrap;
-  flex: 1; justify-content: center; min-width: 0; }
-.nykiss-heat-chip:hover { opacity: .85; }
-.nykiss-heat-chip[data-filter-key="cold"].is-active { background: rgba(42,107,154,.25); border-color: #2A6B9A; color: #5ba8d4; box-shadow: 0 0 8px rgba(42,107,154,.3); }
-.nykiss-heat-chip[data-filter-key="hot"].is-active  { background: rgba(224,90,32,.25);  border-color: #E05A20; color: #FF6B30; box-shadow: 0 0 8px rgba(224,90,32,.3); }
-/* In-place heat filter — hide rows that don't match the active chip (no overlay, no trap) */
-.nykiss-filtered-out { display: none !important; }
 `;
   document.head.appendChild(style);
 }
@@ -373,7 +363,7 @@ async function renderMenu() {
         }
         applyAllRings();
         updateFabRing(m.telegram_id);
-        updateHeatChipBtns();
+        syncHeatFolders([{peerId: m.telegram_id, status: opt.key}]);
         renderMenu();
       });
       heatRow.append(dot);
@@ -460,12 +450,6 @@ function sync() {
   // Re-apply rings every ~3s to catch chats that were already in DOM
   if(syncTick % 5 === 0) {
     applyAllRings();
-    updateHeatChipBtns();
-  }
-
-  if(!filterInited) {
-    const overlay = document.querySelector<HTMLElement>('.chatlist-overlay');
-    if(overlay) { filterInited = true; buildHotFilterChip(overlay); }
   }
 }
 
@@ -497,5 +481,6 @@ export function initQuickBubble() {
 
   sync();
   watchDialogList();
+  window.setTimeout(migrateHeatToFolders, 8000);
   window.setInterval(sync, 600);
 }
