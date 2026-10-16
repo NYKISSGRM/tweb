@@ -16,6 +16,7 @@ import rootScope from '@lib/rootScope';
 import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUsernames';
 import {initPinBot} from '@lib/nykiss/pinBot';
 import {initStartFolder} from '@lib/nykiss/startFolder';
+import {fmtMoney, daysWord} from '@lib/nykiss/profileModel';
 import {planFolders, toPlannerFolders, FOLDER_CAP, LEGACY_HEAT_FOLDER_TITLES, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
 
 export const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
@@ -823,10 +824,15 @@ function paintNone(m: OpenMammoth) {
   add.addEventListener('click', e => { e.stopPropagation(); addMammoth(add, errEl); });
 }
 
-// The other person is a worker of the team, not a мамонт: only what the rating shows everybody anyway.
+// The other person is a worker of the team, not a мамонт: what the rating shows everybody anyway
+// (earnings, rank, streak, profit count), no balance and no CRM data.
 function paintTeammate(m: OpenMammoth, t: any) {
+  const fire = Math.max(0, Math.floor(Number(t?.flame_len) || 0));
   setMenu('team', '', menuHead() + menuWho(String(t?.display_name || m.nickname), subtitle(m)) +
-    statusRow('Кто', 'Воркер команды') + statusRow('Ранг', escapeHtml(t?.rank_name || '—')) +
+    statusRow('Кто', 'Воркер команды') +
+    statusRow('Заработал всего', escapeHtml(fmtMoney(money(t?.total_earned))), '#e2c25a') +
+    statusRow('Ранг', escapeHtml(`${t?.rank_emoji || ''} ${t?.rank_name || '—'}`.trim())) +
+    (fire ? statusRow('Огонёк', `🔥 ${fire} ${daysWord(fire)}`) : '') +
     statusRow('Профитов', String(Math.max(0, Math.floor(Number(t?.profits_count) || 0)))) +
     '<div class="nykiss-qb__note">Это свой, не мамонт: в CRM его добавлять не нужно.</div>');
 }
@@ -887,8 +893,10 @@ function money(v: unknown): number {
 // «@username · id 123»
 const subtitle = (m: OpenMammoth) => [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ');
 
-const lookup = (m: OpenMammoth) =>
-  apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
+export const lookupPeer = (telegram_id: number, username?: string | null) =>
+  apiFetch(`/messenger/lookup?telegram_id=${telegram_id}&username=${encodeURIComponent(username || '')}`);
+
+const lookup = (m: OpenMammoth) => lookupPeer(m.telegram_id, m.username);
 
 // --- chip (always-visible status above FAB) ---
 function setChip(kind: 'mine' | 'none' | 'foreign' | 'team' | '', amount: unknown = 0) {
@@ -911,7 +919,7 @@ async function refreshBadge() {
     const b = await lookup(m);
     if(currentPeerId !== forThis) return; // chat switched mid-request
     if(b?.mine) setChip('mine', b.total_deposited);
-    else if(b?.teammate) setChip('team', b.teammate.rank_name);
+    else if(b?.teammate) setChip('team', `${b.teammate.rank_emoji || ''} ${fmtMoney(money(b.teammate.total_earned))}`.trim());
     else if(b?.taken_by_other) setChip('foreign');
     else setChip('none');
   } catch(e) { /* keep hidden on error */ }

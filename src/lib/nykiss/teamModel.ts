@@ -1,6 +1,6 @@
 // NYKISS Gram — командная видимость: чистая модель (без зависимостей от tweb, чтобы тестировалась отдельно).
 
-export type TeamRank = {level: number, name: string, color: string} | null;
+export type TeamRank = {level: number, name: string, color: string, emoji?: string} | null;
 export type TeamFire = {len: number, tier: number, tier_name: string | null, state: string} | null;
 
 export type TeamMember = {
@@ -22,6 +22,13 @@ export function memberTitle(m: TeamMember): string {
   if(m.fire) parts.push(`серия ${m.fire.len} дн.`);
   parts.push(m.online ? 'в сети' : 'не в сети');
   return parts.join(' · ');
+}
+
+/** Значок у имени коллеги: эмодзи ранга и огонёк с 3 дней. Приходит с сервера, поэтому режем длину и берём только текст. */
+export function titleBadge(m: TeamMember): string {
+  const e = typeof m.rank?.emoji === 'string' ? m.rank.emoji.slice(0, 8) : '';
+  const f = m.fire && m.fire.len >= 3 && m.fire.state !== 'lost' ? ` 🔥${Math.floor(m.fire.len)}` : '';
+  return (e + f).trim();
 }
 
 /** Индекс по peer id: бейдж ставим только коллегам (себя не помечаем). Ответ сервера считаем недоверенным. */

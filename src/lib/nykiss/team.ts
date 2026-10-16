@@ -9,11 +9,12 @@
 import rootScope from '@lib/rootScope';
 import {toast} from '@components/toast';
 import {API, getKey, setKey} from '@lib/nykiss/quickBubble';
-import {TeamMember, buildIndex, memberTitle, pollDelay} from '@lib/nykiss/teamModel';
+import {TeamMember, buildIndex, memberTitle, pollDelay, titleBadge} from '@lib/nykiss/teamModel';
 
 const NO_KEY_MS = 5_000;    // ключа нет: раз в 5 с читаем localStorage (копейки), ждём, пока его подключат
 const WARN_LS = 'nykiss_tid_warned';
 const AVATAR_SEL = '.avatar[data-peer-id]';
+const TITLE_SEL = '.peer-title[data-peer-id]';
 const STYLE_ID = 'nykiss-team-style';
 
 let index = new Map<string, TeamMember>();
@@ -166,12 +167,20 @@ function mark(el: HTMLElement) {
   if(el.getAttribute('data-nk-title') !== title) { el.setAttribute('data-nk-title', title); el.title = title; }
 }
 
+// имя коллеги получает значок ранга и огонёк (рисует CSS из атрибута: DOM и поведение имени не трогаем)
+function markTitle(el: HTMLElement) {
+  const m = index.get(el.dataset.peerId || '');
+  const badge = m ? titleBadge(m) : '';
+  if(badge) { if(el.dataset.nkBadge !== badge) el.dataset.nkBadge = badge; } else if(el.dataset.nkBadge) delete el.dataset.nkBadge;
+}
+
 function flush() {
   frame = 0;
   if(fullScan) {
     fullScan = false;
     pending.clear();
     document.querySelectorAll<HTMLElement>(AVATAR_SEL).forEach(mark);
+    document.querySelectorAll<HTMLElement>(TITLE_SEL).forEach(markTitle);
     return;
   }
   const batch = pending;
@@ -179,6 +188,8 @@ function flush() {
   batch.forEach(n => {
     if(n.matches?.(AVATAR_SEL)) mark(n);
     n.querySelectorAll?.<HTMLElement>(AVATAR_SEL).forEach(mark);
+    if(n.matches?.(TITLE_SEL)) markTitle(n);
+    n.querySelectorAll?.<HTMLElement>(TITLE_SEL).forEach(markTitle);
   });
 }
 
@@ -218,7 +229,9 @@ function injectStyle() {
 }
 .avatar[data-nk-team="online"]::before { box-shadow: 0 0 0 2px rgba(50, 162, 113, .95); }
 .avatar:is(.avatar-16, .avatar-18, .avatar-20, .avatar-22)[data-nk-team]::before { display: none; }
+
 .bubbles-group-avatar[data-nk-team] { overflow: visible; }
+.peer-title[data-nk-badge]::after { content: ' ' attr(data-nk-badge); font-style: normal; white-space: nowrap; }
 `;
   document.head.appendChild(st);
 }

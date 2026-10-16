@@ -16,6 +16,7 @@ import pause from '@helpers/schedulers/pause';
 import classNames from '@helpers/string/classNames';
 import Row from '@components/rowTsx';
 import NykissEarnings from '@components/nykissEarnings';
+import NykissColleague from '@components/nykissColleague';
 import formatUserPhone from '@components/wrappers/formatUserPhone';
 import {copyTextToClipboard} from '@helpers/clipboard';
 import {copyPhoneNumber, copyUsername} from '@helpers/copyContact';
@@ -1688,6 +1689,9 @@ PeerProfile.MainSection = () => {
         <PeerProfile.Username />
         <Show when={context.peerId === rootScope.myId && !context.isDialog}>
           <NykissEarnings />
+        </Show>
+        <Show when={context.peerId.isUser() && context.peerId !== rootScope.myId}>
+          <NykissColleague peerId={context.peerId} username={(context.peer as User.user)?.username} />
         </Show>
         <PeerProfile.Location />
         <PeerProfile.Bio />
