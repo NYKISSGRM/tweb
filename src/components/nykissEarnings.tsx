@@ -1,9 +1,9 @@
 // NYKISS: заработок и ранг/огонёк двумя нативными строками внутри обычного профиля (Настройки), сразу после «Имя пользователя».
-// Нет ключа NYKISS, нет ответа, чужой Telegram-аккаунт: ничего не рендерим, профиль остаётся стоковым.
+// Нет ключа NYKISS или нет ответа: ничего не рендерим, профиль остаётся стоковым. Несовпадение Telegram-аккаунта блок не прячет:
+// данные принадлежат тому, чей ключ подключён, а предупреждение о чужом аккаунте живёт в оверлее «Подробнее».
 import {createMemo, createResource, Show} from 'solid-js';
 import Row from '@components/rowTsx';
 import {getKey} from '@lib/nykiss/quickBubble';
-import {isIdentityMismatch} from '@lib/nykiss/team';
 import {earningsRows} from '@lib/nykiss/profileModel';
 
 export default function NykissEarnings() {
@@ -12,7 +12,7 @@ export default function NykissEarnings() {
     const {loadProfile} = await import('@lib/nykiss/profile');
     return loadProfile();
   });
-  const rows = createMemo(() => profile.state === 'ready' && !isIdentityMismatch() ? earningsRows(profile()) : null);
+  const rows = createMemo(() => profile.state === 'ready' ? earningsRows(profile()) : null);
   const openDetails = () => {
     import('@lib/nykiss/profile').then(({openMyProfile}) => openMyProfile());
   };
