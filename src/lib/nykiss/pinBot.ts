@@ -16,6 +16,12 @@ const LOCK = 'nykiss-pin-bot-v1';
 let busy = false;
 let quietUntil = 0;
 let botPeerId: PeerId | undefined;
+let lastStatus = 'not run yet';
+
+function report(status: string) {
+  if(status !== lastStatus) console.info('[nykiss] pin bot:', status);
+  lastStatus = status;
+}
 
 async function resolveBot(): Promise<PeerId | undefined> {
   if(botPeerId) return botPeerId;
@@ -29,12 +35,13 @@ async function pass() {
   busy = true;
   try {
     const peerId = await resolveBot();
-    if(!peerId) return;
+    if(!peerId) return report('bot not found by username');
 
     const {appMessagesManager, dialogsStorage} = appImManager.managers;
     const dialog: any = await appMessagesManager.getDialogOnly(peerId);
     // never opened (no dialog yet) or deliberately archived: leave it alone
-    if(!dialog || dialog.folder_id === ARCHIVE_FOLDER) return;
+    if(!dialog) return report('no dialog with the bot yet (open the chat once)');
+    if(dialog.folder_id === ARCHIVE_FOLDER) return report('bot chat is archived, left alone');
 
     let pins: PeerId[] = await dialogsStorage.getPinnedOrderForFilter(MAIN_FOLDER);
     if(!dialog.pFlags?.pinned || !pins.includes(peerId)) {
@@ -44,10 +51,13 @@ async function pass() {
 
     if(pins[0] !== peerId) {
       await appMessagesManager.reorderPinnedDialogs({filterId: MAIN_FOLDER, order: [peerId, ...pins.filter((id) => id !== peerId)]});
+      return report('pinned and moved to the top');
     }
+    report('pinned first');
   } catch(e) {
     // pin limit reached, flood wait, offline: stay quiet for a while instead of hammering the server
     quietUntil = Date.now() + FAIL_BACKOFF_MS;
+    report('failed: ' + ((e as any)?.type || (e as any)?.message || e));
     console.warn('[nykiss] pin bot failed', e);
   } finally {
     busy = false;
@@ -62,6 +72,12 @@ function run() {
 }
 
 export function initPinBot() {
+  // console: await nykissPinBot() runs a pass now and says what happened
+  (window as any).nykissPinBot = async() => {
+    quietUntil = 0;
+    await pass();
+    return lastStatus;
+  };
   window.setTimeout(run, 6000);
   window.setInterval(run, PASS_MS);
 }
