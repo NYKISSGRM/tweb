@@ -15,7 +15,6 @@ import appImManager from '@lib/appImManager';
 import rootScope from '@lib/rootScope';
 import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUsernames';
 import {planFolders, FOLDER_CAP, LEGACY_HEAT_FOLDER_TITLES, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
-import {NOTE_CSS, chipNote, noteFieldHtml, wireNoteField} from '@lib/nykiss/mammothNote';
 
 export const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
 const KEY_LS = 'nykiss_messenger_key';
@@ -534,7 +533,6 @@ function injectStyle() {
 @media (prefers-reduced-motion:reduce){.nykiss-qb *{animation:none!important;transition-duration:.01s!important}}
 .nykiss-qb__build{font:600 9px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:none;color:#5d5748}
 
-${NOTE_CSS}
 `;
   document.head.appendChild(style);
   document.body.insertAdjacentHTML('beforeend', SPRITE);
@@ -715,19 +713,11 @@ function paintMine(m: OpenMammoth, b: any) {
     `<div class="nykiss-qb__stat"><div class="nykiss-qb__lbl">Статус</div>` +
     `<div class="nykiss-qb__val">${escapeHtml(plainLabel(b.status_label)) || '—'}</div></div></div>` +
     `<div class="nykiss-qb__sec"><div class="nykiss-qb__lbl">Температура</div>${segHtml(heat)}</div>` +
-    noteFieldHtml(b.note) +
     (heat === 'hot'
       ? `<div class="nykiss-qb__seal">${ic('hot')}<div><strong>Оплачено</strong><span>Ставится сам, когда приходит оплата.</span></div></div><div style="height:16px"></div>`
       : `<div class="nykiss-qb__note">${HEAT_NOTES[heat]}</div>`) +
     '<div class="nykiss-qb__err" style="display:none"></div>');
   wireHeatSwitch(m, heat);
-  wireNoteField(menuEl, b.note, async note => {
-    const saved = (await apiFetch('/messenger/note', {
-      method: 'PUT', body: JSON.stringify({telegram_id: m.telegram_id, username: m.username, note})
-    })).note;
-    setChip('mine', b.total_deposited || 0, saved);   // чип над кнопкой не должен показывать старую заметку
-    return saved;
-  });
 }
 
 function paintNone(m: OpenMammoth) {
@@ -790,10 +780,10 @@ function escapeHtml(s: string): string {
 }
 
 // --- chip (always-visible status above FAB) ---
-function setChip(kind: 'mine' | 'none' | 'foreign' | '', money = 0, note = '') {
+function setChip(kind: 'mine' | 'none' | 'foreign' | '', money = 0) {
   chipEl.className = 'nykiss-qb__chip';
   if(!kind) { chipEl.innerHTML = ''; return; }
-  chipEl.innerHTML = kind === 'mine' ? ic('check') + `<span>твой · <b>$${money}</b></span>` + (note ? `<span class="nykiss-qb__chipnote">· ${escapeHtml(chipNote(note))}</span>` : '')
+  chipEl.innerHTML = kind === 'mine' ? ic('check') + `<span>твой · <b>$${money}</b></span>`
     : kind === 'foreign' ? ic('lock') + '<span>чужой мамонт</span>'
       : ic('plus') + '<span>не в CRM</span>';
   chipEl.className = 'nykiss-qb__chip is-shown is-' + kind;
@@ -808,7 +798,7 @@ async function refreshBadge() {
   try {
     const b = await apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
     if(currentPeerId !== forThis) return; // chat switched mid-request
-    if(b?.mine) setChip('mine', b.total_deposited || 0, b.note || '');
+    if(b?.mine) setChip('mine', b.total_deposited || 0);
     else if(b?.taken_by_other) setChip('foreign');
     else setChip('none');
   } catch(e) { /* keep hidden on error */ }
