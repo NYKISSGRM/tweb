@@ -1,22 +1,32 @@
-// NYKISS — встроенный «сайт» (Gram-сборка мини-аппы воркера, /gram/ в iframe).
-// Открывается пунктом меню в левом сайдбаре НА ВЕСЬ ЭКРАН (а не в узком слайдере ~420px,
-// где CRM была тесной и «не работала»). Ванильный оверлей, как quickBubble.ts.
+// NYKISS — the embedded «site» (the Gram build of the worker mini app, /gram/ in an iframe).
+// Opened from a left-sidebar menu item FULL SCREEN (the narrow ~420px slider made the CRM cramped).
+// A vanilla overlay, like quickBubble.ts.
 //
-// Протокол с iframe (postMessage, только свой origin и только от своего iframe):
+// Protocol with the iframe (postMessage; only our own origin and only from our own iframe):
 //   iframe → Gram: {type:'nk:ready'} · {type:'nk:back-depth', depth} · {type:'nk:open-tg-link', url}
 //   Gram → iframe: {type:'nk:session', access, refresh} · {type:'nk:back'}
 
 import appImManager from '@lib/appImManager';
 import {getKey, promptConnect} from '@lib/nykiss/quickBubble';
-import {getGramSession, resetGramThrottle, GramAuthError} from '@lib/nykiss/wcrmAuth';
+import {getGramSession, resetGramThrottle, clearGramSession, GramAuthError} from '@lib/nykiss/wcrmAuth';
 
 const NYKISS_WEB_ORIGIN = 'https://wcrm.206.71.148.212.nip.io';
 const NYKISS_WEB_URL = NYKISS_WEB_ORIGIN + '/gram/';
 
-const ICON_BACK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
-const ICON_CLOSE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const icon = (path: string) =>
+  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`;
+const ICON_BACK = icon('M15 18l-6-6 6-6');
+const ICON_CLOSE = icon('M6 6l12 12M18 6L6 18');
 
-let overlay: HTMLDivElement | null = null; // существует и при прелоаде (display:none)
+// What the mini app really needs: copying a key to the clipboard (and its own fullscreen). Camera,
+// microphone and clipboard-read are not used by the app, so the iframe does not get them.
+const FRAME_ALLOW = 'clipboard-write; fullscreen';
+// No top navigation, no pointer lock; the app keeps scripts, its own storage, forms, popups (t.me links, noopener) and dialogs.
+const FRAME_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads';
+// The iframe must announce itself (nk:ready) and get its session within this time, or the user sees the error screen.
+const FRAME_TIMEOUT_MS = 20000;
+
+let overlay: HTMLDivElement | null = null; // also exists while preloading (display:none)
 let backBtn: HTMLButtonElement | null = null;
 let iframe: HTMLIFrameElement | null = null;
 let screenEl: HTMLDivElement | null = null;
@@ -24,12 +34,13 @@ let visible = false;
 let depth = 0;
 let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
 let onMessage: ((e: MessageEvent) => void) | null = null;
+let frameTimer = 0;
 
-// ---- ссылки t.me ---------------------------------------------------------------
+// ---- t.me links ---------------------------------------------------------------
 
 const USERNAME_RE = /^[A-Za-z][A-Za-z0-9_]{3,31}$/;
 
-// Только https://t.me/<username> и tg://resolve?domain=<username>, остальное — null.
+// Only https://t.me/<username> and tg://resolve?domain=<username>; anything else (invites, bots with start, other schemes) is null.
 function parseTgLink(raw: unknown): string | null {
   if(typeof raw !== 'string' || raw.length > 300) return null;
   let u: URL;
@@ -54,7 +65,7 @@ function openTgLink(raw: unknown) {
   });
 }
 
-// ---- оверлей -------------------------------------------------------------------
+// ---- overlay -------------------------------------------------------------------
 
 function setIcon() {
   if(!backBtn) return;
@@ -63,7 +74,13 @@ function setIcon() {
   backBtn.setAttribute('aria-label', back ? 'Назад' : 'Закрыть NYKISS');
 }
 
+function stopFrameTimer() {
+  window.clearTimeout(frameTimer);
+  frameTimer = 0;
+}
+
 function destroyFrame() {
+  stopFrameTimer();
   if(onMessage) {
     window.removeEventListener('message', onMessage);
     onMessage = null;
@@ -94,7 +111,7 @@ function ensureOverlay() {
     'background:#070807'
   ].join(';');
 
-  // Кнопка «назад/закрыть» — золотой круг, поверх iframe, с учётом вырезов.
+  // The back / close button: a gold circle over the iframe, clear of the notch.
   backBtn = document.createElement('button');
   backBtn.style.cssText = [
     'position:absolute',
@@ -200,24 +217,25 @@ function showError(e: unknown) {
   }
 }
 
-// Ошибка у скрытого (прелоад) iframe: молча сносим, экран покажет сам open.
+// An error on a hidden (preloaded) iframe: drop it quietly, open will show the screen itself.
 function failFrame(e: unknown) {
   if(visible) showError(e);
   else destroyFrame();
 }
 
 function handleMessage(e: MessageEvent) {
-  // Только свой origin и только окно нашего iframe — остальное молча мимо.
+  // Only our origin AND only our iframe's window: everything else is ignored without a trace.
   if(e.origin !== NYKISS_WEB_ORIGIN) return;
   if(!iframe || e.source !== iframe.contentWindow) return;
   const d = e.data;
-  if(!d || typeof d !== 'object') return;
+  if(!d || typeof d !== 'object' || typeof d.type !== 'string') return;
 
   switch(d.type) {
     case 'nk:ready': {
       const frame = iframe;
       getGramSession().then((s) => {
-        if(iframe !== frame || !frame.contentWindow) return; // iframe уже закрыт/заменён
+        if(iframe !== frame || !frame.contentWindow) return; // the iframe was closed or replaced
+        stopFrameTimer();
         frame.contentWindow.postMessage({type: 'nk:session', access: s.access, refresh: s.refresh}, NYKISS_WEB_ORIGIN);
       }, (err) => {
         if(iframe === frame) failFrame(err);
@@ -225,7 +243,7 @@ function handleMessage(e: MessageEvent) {
       break;
     }
     case 'nk:back-depth': {
-      depth = typeof d.depth === 'number' && d.depth > 0 ? 1 : 0;
+      depth = typeof d.depth === 'number' && d.depth > 0 ? 1 : 0; // only "is there somewhere to go back" matters
       setIcon();
       break;
     }
@@ -236,7 +254,7 @@ function handleMessage(e: MessageEvent) {
   }
 }
 
-// Создаёт iframe (видимый или скрытый — по `visible`) + слушатель сообщений.
+// Creates the iframe (shown or hidden, by `visible`) and the message listener.
 function startFrame() {
   ensureOverlay();
   destroyFrame();
@@ -244,12 +262,18 @@ function startFrame() {
 
   iframe = document.createElement('iframe');
   iframe.src = NYKISS_WEB_URL;
-  iframe.setAttribute('allow', 'clipboard-read; clipboard-write; camera; microphone; fullscreen');
+  iframe.setAttribute('allow', FRAME_ALLOW);
+  iframe.setAttribute('sandbox', FRAME_SANDBOX);
+  iframe.referrerPolicy = 'no-referrer';
   iframe.style.cssText = 'flex:1 1 auto;width:100%;height:100%;border:0;display:block;background:#070807;';
   overlay.prepend(iframe);
 
   onMessage = handleMessage;
   window.addEventListener('message', onMessage);
+  const frame = iframe;
+  frameTimer = window.setTimeout(() => {
+    if(iframe === frame) failFrame(new GramAuthError('network'));
+  }, FRAME_TIMEOUT_MS);
   setIcon();
 }
 
@@ -260,6 +284,7 @@ export function closeNykissWeb() {
   }
   destroyFrame();
   clearScreen();
+  clearGramSession();
   if(overlay) {
     overlay.remove();
     overlay = null;
@@ -269,7 +294,7 @@ export function closeNykissWeb() {
 }
 
 export function openNykissWeb() {
-  if(visible) return; // уже открыт
+  if(visible) return; // already open
   visible = true;
   resetGramThrottle();
   ensureOverlay();
@@ -280,7 +305,7 @@ export function openNykissWeb() {
   } else if(!iframe) {
     startFrame();
   } else {
-    // iframe из прелоада: сессию он уже получил, если успел; иначе спросит сам.
+    // the preloaded iframe: it has the session already if it was quick enough, otherwise it asks itself
     setIcon();
   }
 
@@ -290,8 +315,8 @@ export function openNykissWeb() {
   document.addEventListener('keydown', onKeyDown);
 }
 
-// Скрытый iframe заранее — только если ключ уже есть. Первый open после загрузки Gram
-// становится мгновенным. После close iframe уничтожается (следующий open — свежий).
+// A hidden iframe in advance, only when a key already exists: the first open after Gram loads is instant.
+// close destroys the iframe (the next open gets a fresh one).
 export function preloadNykissWeb() {
   if(overlay || visible || !getKey()) return;
   startFrame();

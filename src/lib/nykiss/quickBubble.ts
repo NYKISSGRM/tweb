@@ -14,7 +14,8 @@
 import appImManager from '@lib/appImManager';
 import rootScope from '@lib/rootScope';
 import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUsernames';
-import {planFolders, FOLDER_CAP, LEGACY_HEAT_FOLDER_TITLES, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
+import {initPinBot} from '@lib/nykiss/pinBot';
+import {planFolders, toPlannerFolders, FOLDER_CAP, LEGACY_HEAT_FOLDER_TITLES, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
 
 export const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
 const KEY_LS = 'nykiss_messenger_key';
@@ -28,15 +29,6 @@ type Heat = 'cold' | 'warm' | 'hot';
 const heatMap = new Map<string, Heat>();        // user id (= tweb peerId) → heat
 const heatByName = new Map<string, Heat>();     // username → heat, for мамонты the CRM knows only by @username
 const peerUsername = new Map<string, string>(); // user id → username ('' = none); filled from tweb's own cache
-
-function heatOf(peerId: number | string | null | undefined): Heat {
-  if(peerId == null) return 'cold';
-  const id = String(peerId);
-  const byId = heatMap.get(id);
-  if(byId) return byId;
-  const name = peerUsername.get(id);
-  return (name && heatByName.get(name)) || 'cold';
-}
 
 // Every chat the CRM has a temperature for, by id (usernames matched to ids where tweb knows them).
 function allHeat(): Map<string, Heat> {
@@ -59,6 +51,7 @@ const PROFILE_SEL = '.profile-avatars-container';
 const pendingRings = new Set<HTMLElement>();
 let ringFrame = 0;
 let ringFullScan = false;
+const RING_BATCH_MAX = 300;
 
 function setHeatAttr(el: HTMLElement, peerId: string | undefined) {
   // only a мамонт the CRM knows gets a ring (cold = blue, small); everybody else stays bare
@@ -82,23 +75,39 @@ function paintProfile(box: HTMLElement) {
 // Learn usernames of the ids on screen from tweb's cache (no network) — only needed while the CRM
 // has мамонты it knows by @username alone.
 let resolvingNames = false;
+const nameTriedAt = new Map<string, number>(); // user id → when tweb last had no such user cached
+const NAME_RETRY_MS = 30000;
 async function resolveNames(avatars: HTMLElement[]) {
   if(!heatByName.size || resolvingNames) return;
   const ids = [...new Set(avatars.map(a => a.dataset.peerId || ''))]
-  .filter(id => /^\d+$/.test(id) && !peerUsername.has(id)).slice(0, 200);
+  .filter(id => /^\d+$/.test(id) && !peerUsername.has(id) && Date.now() - (nameTriedAt.get(id) || 0) > NAME_RETRY_MS).slice(0, 200);
   if(!ids.length) return;
   resolvingNames = true;
   try {
     const {appUsersManager} = appImManager.managers;
+    const users: any[] = await Promise.all(ids.map(id => appUsersManager.getUser(+id).catch(() => null)));
     let learned = false;
-    for(const id of ids) {
-      const user: any = await appUsersManager.getUser(+id);
-      const name = String((user && ((getPeerActiveUsernames(user) || [])[0] || user.username)) || '').toLowerCase();
+    ids.forEach((id, i) => {
+      const user = users[i];
+      // a user tweb does not hold yet stays unknown (retried on the next pass), not "has no username"
+      if(!user) { nameTriedAt.set(id, Date.now()); return; }
+      const name = String((getPeerActiveUsernames(user) || [])[0] || user.username || '').toLowerCase();
       peerUsername.set(id, name);
       if(name && heatByName.has(name)) learned = true;
-    }
+    });
     if(learned) { applyAllRings(); reconcileHeatFolders(); }
-  } catch(e) { /* user not cached yet — try on the next pass */ } finally { resolvingNames = false; }
+  } catch(e) { /* manager not ready — try on the next pass */ } finally { resolvingNames = false; }
+}
+
+// Paints every avatar / profile box inside `root` (or `root` itself); returns the avatars it saw.
+const RING_SEL = AVATAR_SEL + ',' + PROFILE_SEL;
+function paintTree(root: ParentNode & Element, seen: HTMLElement[]) {
+  const paint = (el: HTMLElement) => {
+    if(el.matches(PROFILE_SEL)) paintProfile(el);
+    else { paintAvatar(el); seen.push(el); }
+  };
+  if(root.matches(RING_SEL)) paint(root as HTMLElement);
+  root.querySelectorAll<HTMLElement>(RING_SEL).forEach(paint);
 }
 
 function flushRings() {
@@ -106,16 +115,14 @@ function flushRings() {
   const seen: HTMLElement[] = [];
   if(ringFullScan) {
     ringFullScan = false;
-    document.querySelectorAll<HTMLElement>(AVATAR_SEL).forEach(av => { paintAvatar(av); seen.push(av); });
-    document.querySelectorAll<HTMLElement>(PROFILE_SEL).forEach(paintProfile);
+    paintTree(document.body, seen);
   } else {
     pendingRings.forEach(n => {
       if(!n.isConnected) return;
-      if(n.matches(AVATAR_SEL)) { paintAvatar(n); seen.push(n); }
-      n.querySelectorAll<HTMLElement>(AVATAR_SEL).forEach(av => { paintAvatar(av); seen.push(av); });
+      paintTree(n, seen);
+      // an avatar inside the profile carousel changed: the box is painted from its first photo
       const box = n.closest<HTMLElement>(PROFILE_SEL);
-      if(box) paintProfile(box);
-      n.querySelectorAll<HTMLElement>(PROFILE_SEL).forEach(paintProfile);
+      if(box && box !== n) paintProfile(box);
     });
   }
   pendingRings.clear();
@@ -139,7 +146,9 @@ function watchAvatars() {
       if(r.type === 'attributes') pendingRings.add(r.target as HTMLElement);
       else r.addedNodes.forEach(n => { if(n.nodeType === 1) pendingRings.add(n as HTMLElement); });
     }
-    if(pendingRings.size) scheduleRings();
+    // a flood (history load, big list render): one pass over the document beats thousands of subtree queries
+    if(pendingRings.size > RING_BATCH_MAX) { pendingRings.clear(); ringFullScan = true; }
+    if(pendingRings.size || ringFullScan) scheduleRings();
   });
   // tweb reuses avatar nodes and swaps the peer id on a live one, so the attribute is watched too
   ringObserver.observe(document.body, {
@@ -172,19 +181,41 @@ function updateFabRing(telegramId?: number | null) {
 
 let folderDirty = false;
 let folderRunning: Promise<void> | null = null;
+let folderPassAt = 0;       // last attempt
+let folderPrint = '';       // what the folders were last built from
+const FOLDER_RECHECK_MS = 19000; // the folders are re-read at least this often: the user may edit them by hand
 
 // What the folders must hold: `owned` = every chat the CRM gives that temperature, `want` = those tweb can address.
 async function computeFolderTargets() {
-  const {appUsersManager} = appImManager.managers;
+  const {appUsersManager, filtersStorage} = appImManager.managers;
   const want: Record<HeatKey, number[]> = {warm: [], hot: []};
   const owned: Record<HeatKey, number[]> = {warm: [], hot: []};
-  for(const [id, heat] of allHeat()) {
-    if(heat === 'cold') continue;
-    owned[heat].push(+id);
-    const user: any = await appUsersManager.getUser(+id);
-    // a chat can only join a folder when tweb holds its access hash
-    if(user && (user.access_hash || user.pFlags?.self) && want[heat].length < FOLDER_CAP) want[heat].push(+id);
+  // After a reload the usernames of the CRM's @username-only мамонты are not matched to ids yet. Without
+  // them the planner would take those chats out of the folders and put them back a moment later:
+  // learn the usernames of the chats already in our folders from tweb's cache first.
+  if(heatByName.size) {
+    const titles: string[] = Object.values(HEAT_FOLDER_TITLES);
+    const inFolders = toPlannerFolders(await filtersStorage.getDialogFilters())
+    .filter((f) => titles.includes(f.title))
+    .flatMap((f) => [...f.pinnedPeerIds, ...f.includePeerIds])
+    .map(String)
+    .filter((id) => /^\d+$/.test(id) && !peerUsername.has(id));
+    const ids = [...new Set(inFolders)];
+    const found: any[] = await Promise.all(ids.map((id) => appUsersManager.getUser(+id).catch(() => null)));
+    ids.forEach((id, i) => {
+      const user = found[i];
+      if(user) peerUsername.set(id, String((getPeerActiveUsernames(user) || [])[0] || user.username || '').toLowerCase());
+    });
   }
+  const entries = [...allHeat()].filter(([, heat]) => heat !== 'cold') as [string, HeatKey][];
+  const users: any[] = await Promise.all(entries.map(([id]) => appUsersManager.getUser(+id).catch(() => null)));
+  entries.forEach(([id, heat], i) => {
+    owned[heat].push(+id);
+    const user = users[i];
+    // a chat can only join a folder when tweb holds its access hash
+    // (a `min` user's hash is refused by the server and would fail the whole folder update)
+    if(user && !user.pFlags?.min && (user.access_hash || user.pFlags?.self) && want[heat].length < FOLDER_CAP) want[heat].push(+id);
+  });
   return {want, owned};
 }
 
@@ -192,38 +223,60 @@ async function runFolderPass() {
   const {filtersStorage: fs, appPeersManager} = appImManager.managers;
   const {want, owned} = await computeFolderTargets();
 
-  const fresh: any[] = (await fs.getDialogFilters(true)).filter((f: any) => f._ === 'dialogFilter' && f.id > 1);
-  const ops = planFolders(fresh.map(f => ({
-    id: f.id,
-    title: f.title?.text || '',
-    includePeerIds: f.includePeerIds || [],
-    pinnedPeerIds: f.pinnedPeerIds || [],
-    excludePeerIds: f.excludePeerIds || [],
-    flags: Object.keys(f.pFlags || {}).filter(k => (f.pFlags as any)[k]),
-    hasColor: f.color != null
-  })), want, owned);
+  const fresh: any[] = await fs.getDialogFilters(true);
+  const ops = planFolders(toPlannerFolders(fresh), want, owned);
 
+  // one failing op (folder limit, server error) must not keep the others from running
+  let failure: unknown = null;
   for(const op of ops) {
-    if(op.type === 'delete') {
-      const f = fresh.find(x => x.id === op.id);
-      if(f) await fs.updateDialogFilter(f, true);
-      continue;
+    try {
+      if(op.type === 'delete') {
+        const f = fresh.find(x => x.id === op.id);
+        if(f) await fs.updateDialogFilter(f, true);
+        continue;
+      }
+      // a chat that stays but whose user tweb does not hold right now reuses the input the folder already has;
+      // one without any input is left out instead of failing the whole folder
+      const had = new Map<number, any>();
+      const old = op.id === null ? null : fresh.find(x => x.id === op.id);
+      (old?.includePeerIds || []).forEach((id: number, i: number) => { if(old.include_peers?.[i]) had.set(id, old.include_peers[i]); });
+      const peerIds: number[] = [];
+      const inputPeers: any[] = [];
+      for(const id of op.peerIds) {
+        let input: any;
+        try { input = await appPeersManager.getInputPeerById(id); } catch(e) { input = had.get(id); }
+        if(input) { peerIds.push(id); inputPeers.push(input); }
+      }
+      if(!peerIds.length) continue;
+      // built from scratch: nothing of a previous version (pinned, excluded, flags) is carried over
+      const filter: any = {
+        _: 'dialogFilter', pFlags: {}, id: op.id ?? 0,
+        title: {_: 'textWithEntities', text: HEAT_FOLDER_TITLES[op.key], entities: []},
+        emoticon: HEAT_FOLDER_EMOTICONS[op.key],
+        pinned_peers: [], pinnedPeerIds: [],
+        exclude_peers: [], excludePeerIds: [],
+        include_peers: inputPeers, includePeerIds: peerIds
+      };
+      if(op.id === null) await fs.createDialogFilter(filter);
+      else await fs.updateDialogFilter(filter);
+    } catch(e) {
+      failure = failure || e;
     }
-    const inputPeers = await Promise.all(op.peerIds.map(id => appPeersManager.getInputPeerById(id)));
-    // built from scratch: nothing of a previous version (pinned, excluded, flags) is carried over
-    const filter: any = {
-      _: 'dialogFilter', pFlags: {}, id: op.id ?? 0,
-      title: {_: 'textWithEntities', text: HEAT_FOLDER_TITLES[op.key], entities: []},
-      emoticon: HEAT_FOLDER_EMOTICONS[op.key],
-      pinned_peers: [], pinnedPeerIds: [],
-      exclude_peers: [], excludePeerIds: [],
-      include_peers: inputPeers, includePeerIds: op.peerIds
-    };
-    if(op.id === null) await fs.createDialogFilter(filter);
-    else await fs.updateDialogFilter(filter);
   }
 
-  await orderFolders();
+  try { await orderFolders(); } catch(e) { failure = failure || e; }
+  if(failure) throw failure;
+}
+
+const FOLDER_LOCK = 'nykiss-heat-folders-v3';
+// The Web Lock keeps two tabs from creating the same folder twice. `ifAvailable`: when another tab
+// is in the middle of a pass this one skips — the 20 s timer comes round again, nothing queues up behind
+// a stuck tab. Without Web Locks (old Safari) the planner still converges: the oldest duplicate wins.
+async function withFolderLock(run: () => Promise<void>, wait = false) {
+  if(!navigator.locks) return run();
+  return navigator.locks.request(FOLDER_LOCK, {ifAvailable: !wait}, async(lock) => {
+    if(lock) await run();
+  });
 }
 
 // «Все» stays first, then «Тёплые», then «Горячие», then the user's own folders in their order.
@@ -240,16 +293,15 @@ async function orderFolders() {
 }
 
 // A request that arrives mid-pass is not dropped: it marks the state dirty and the pass runs once more.
-// The Web Lock keeps two tabs from creating the same folder twice.
 function reconcileHeatFolders(): Promise<void> {
   folderDirty = true;
   if(folderRunning) return folderRunning;
   const run = async() => {
     while(folderDirty) {
       folderDirty = false;
+      folderPassAt = Date.now();
       try {
-        if(navigator.locks) await navigator.locks.request('nykiss-heat-folders-v3', runFolderPass);
-        else await runFolderPass();
+        await withFolderLock(runFolderPass);
       } catch(e) { console.warn('[nykiss] heat folders:', e); }
     }
   };
@@ -261,16 +313,25 @@ function reconcileHeatFolders(): Promise<void> {
 
 async function fetchHeat() {
   const r = await apiFetch('/messenger/heat');
+  // another round is already queued (the operator changed something meanwhile): this answer is stale
+  if(heatAgain) return;
   heatMap.clear();
   heatByName.clear();
   for(const it of r.items || []) {
+    if(it.heat !== 'cold' && it.heat !== 'warm' && it.heat !== 'hot') continue; // an unknown value must not break the folders
     const heat = it.heat as Heat;
     if(it.telegram_id) heatMap.set(String(it.telegram_id), heat);
     else if(it.username) heatByName.set(String(it.username).toLowerCase(), heat);
   }
   applyAllRings();
   updateFabRing();
-  await reconcileHeatFolders();
+  // folders are re-read from the server only when the CRM state changed or the last pass is old:
+  // switching chats refreshes the heat on every click and must not cost a messages.getDialogFilters each time
+  const print = JSON.stringify([...allHeat()].sort());
+  if(print !== folderPrint || Date.now() - folderPassAt >= FOLDER_RECHECK_MS) {
+    folderPrint = print;
+    await reconcileHeatFolders();
+  }
 }
 
 // Never dropped: a call during a request asks for one more round after it, so the state always ends fresh.
@@ -309,23 +370,46 @@ async function migrateLegacyHeat() {
 
 // ---- key storage -------------------------------------------------------------
 
+// localStorage can throw (private mode, blocked site data): the key then lives for this page load only.
+let memKey = '';
 export function getKey(): string {
-  try { return localStorage.getItem(KEY_LS) || ''; } catch(e) { return ''; }
+  try { return localStorage.getItem(KEY_LS) || ''; } catch(e) { return memKey; }
 }
 export function setKey(k: string | null) {
+  memKey = k || '';
   try { k ? localStorage.setItem(KEY_LS, k) : localStorage.removeItem(KEY_LS); } catch(e) {}
 }
 
 // ---- API ---------------------------------------------------------------------
 
+const FETCH_TIMEOUT_MS = 12000;
+
+// fetch that cannot hang forever: a dead server or a stalled connection becomes a 'network' error.
+export async function fetchTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const ctl = new AbortController();
+  const timer = window.setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, {...init, signal: ctl.signal});
+  } catch(e) {
+    throw new Error('network');
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+// Errors carry a short code in `message`: bad-key · network · http-<status>
 async function apiFetch(path: string, opts: RequestInit = {}): Promise<any> {
-  const res = await fetch(API + path, {
-    ...opts,
-    headers: {'Content-Type': 'application/json', 'X-NYKISS-Key': getKey(), ...(opts.headers || {})}
-  });
+  const headers: Record<string, string> = {'X-NYKISS-Key': getKey()};
+  if(opts.body) headers['Content-Type'] = 'application/json';
+  const res = await fetchTimeout(API + path, {...opts, headers: {...headers, ...(opts.headers as any)}});
   if(res.status === 401) { setKey(''); throw new Error('bad-key'); }
   if(!res.ok) throw new Error('http-' + res.status);
-  return res.status === 204 ? null : res.json();
+  if(res.status === 204) return null;
+  try {
+    return await res.json();
+  } catch(e) {
+    throw new Error('network');
+  }
 }
 
 type OpenMammoth = {telegram_id: number; username: string | null; nickname: string};
@@ -595,9 +679,14 @@ function setErr(errEl: HTMLElement, msg: string) {
 }
 
 function errText(e: any): string {
-  if(e?.message === 'bad-key') return 'Ключ слетел — подключись заново.';
-  if(e?.message === 'http-404') return 'Сначала добавь мамонта в CRM.';
-  return 'Не получилось, попробуй ещё раз.';
+  switch(e?.message) {
+    case 'bad-key': return 'Ключ слетел — подключись заново.';
+    case 'http-404': return 'Сначала добавь мамонта в CRM.';
+    case 'http-403': return 'Доступ закрыт.';
+    case 'http-429': return 'Слишком часто, подожди минуту.';
+    case 'network': return 'Нет связи с CRM.';
+    default: return 'Не получилось, попробуй ещё раз.';
+  }
 }
 
 // --- add мамонт ---
@@ -618,7 +707,7 @@ async function addMammoth(btn: HTMLButtonElement, errEl: HTMLElement) {
   } catch(e: any) {
     btn.disabled = false;
     btn.innerHTML = ic('plus') + 'Добавить мамонта';
-    setErr(errEl, e?.message === 'bad-key' ? errText(e) : 'Не удалось добавить.');
+    setErr(errEl, e?.message === 'http-404' ? 'Не удалось добавить.' : errText(e));
   }
 }
 
@@ -704,12 +793,11 @@ function wireHeatSwitch(m: OpenMammoth, heat: Heat) {
 }
 
 function paintMine(m: OpenMammoth, b: any) {
-  const heat = (b.heat || 'cold') as Heat;
-  const sub = [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ') +
-    (b.taken_by_other ? ' · есть и у других' : '');
+  const heat: Heat = b.heat === 'warm' || b.heat === 'hot' ? b.heat : 'cold'; // goes into markup: only the three known values
+  const sub = subtitle(m) + (b.taken_by_other ? ' · есть и у других' : '');
   setMenu('mine', heat, menuHead() + menuWho(b.nickname || m.nickname, sub) +
     `<div class="nykiss-qb__stats"><div class="nykiss-qb__stat"><div class="nykiss-qb__lbl">Занёс</div>` +
-    `<div class="nykiss-qb__val is-money">$${b.total_deposited || 0}</div></div>` +
+    `<div class="nykiss-qb__val is-money">$${money(b.total_deposited)}</div></div>` +
     `<div class="nykiss-qb__stat"><div class="nykiss-qb__lbl">Статус</div>` +
     `<div class="nykiss-qb__val">${escapeHtml(plainLabel(b.status_label)) || '—'}</div></div></div>` +
     `<div class="nykiss-qb__sec"><div class="nykiss-qb__lbl">Температура</div>${segHtml(heat)}</div>` +
@@ -721,9 +809,8 @@ function paintMine(m: OpenMammoth, b: any) {
 }
 
 function paintNone(m: OpenMammoth) {
-  const sub = [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ');
   // not in the CRM: only «Добавить» — the temperature appears once he is attached
-  setMenu('none', '', menuHead() + menuWho(m.nickname, sub) + statusRow('Статус', 'Не в CRM', 'var(--nq-muted)') +
+  setMenu('none', '', menuHead() + menuWho(m.nickname, subtitle(m)) + statusRow('Статус', 'Не в CRM', 'var(--nq-muted)') +
     '<div class="nykiss-qb__note">Добавь его на свой аккаунт. Температура появится сразу после.</div>' +
     `<button class="nykiss-qb__cta" data-a="add">${ic('plus')}Добавить мамонта</button>` +
     '<div class="nykiss-qb__err" style="display:none"></div>');
@@ -733,8 +820,7 @@ function paintNone(m: OpenMammoth) {
 }
 
 function paintForeign(m: OpenMammoth) {
-  const sub = [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ');
-  setMenu('foreign', '', menuHead() + menuWho(m.nickname, sub) + statusRow('Статус', 'Чужой мамонт', '#e6a1a1') +
+  setMenu('foreign', '', menuHead() + menuWho(m.nickname, subtitle(m)) + statusRow('Статус', 'Чужой мамонт', '#e6a1a1') +
     `<div class="nykiss-qb__lock">${ic('lock')}<div>Привязан к другому воркеру. Добавить или менять температуру нельзя.</div></div>`);
 }
 
@@ -758,15 +844,14 @@ async function renderMenu() {
     return;
   }
 
-  const sub = [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ');
-  setMenu('none', '', menuHead() + menuWho(m.nickname, sub) + statusRow('Статус', '…'));
+  setMenu('none', '', menuHead() + menuWho(m.nickname, subtitle(m)) + statusRow('Статус', '…'));
   let b: any;
   try {
-    b = await apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
+    b = await lookup(m);
   } catch(e: any) {
     if(seq !== renderSeq) return;
-    setMenu('none', '', menuHead() + menuWho(m.nickname, sub) +
-      `<div class="nykiss-qb__hint">${e?.message === 'bad-key' ? 'Ключ слетел — подключись заново.' : 'CRM недоступна.'}</div>`);
+    setMenu('none', '', menuHead() + menuWho(m.nickname, subtitle(m)) +
+      `<div class="nykiss-qb__hint">${e?.message === 'bad-key' ? errText(e) : 'CRM недоступна.'}</div>`);
     return;
   }
   if(seq !== renderSeq) return;
@@ -775,15 +860,28 @@ async function renderMenu() {
   else paintNone(m);
 }
 
-function escapeHtml(s: string): string {
-  return (s || '').replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'} as any)[c]);
+// Everything that reaches innerHTML from Telegram or the CRM goes through here (text and quoted attributes).
+function escapeHtml(s: unknown): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;'} as any)[c]);
 }
 
+// An amount from the CRM, forced to a number: it is printed unescaped next to a currency sign.
+function money(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+
+// «@username · id 123»
+const subtitle = (m: OpenMammoth) => [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ');
+
+const lookup = (m: OpenMammoth) =>
+  apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
+
 // --- chip (always-visible status above FAB) ---
-function setChip(kind: 'mine' | 'none' | 'foreign' | '', money = 0) {
+function setChip(kind: 'mine' | 'none' | 'foreign' | '', amount: unknown = 0) {
   chipEl.className = 'nykiss-qb__chip';
   if(!kind) { chipEl.innerHTML = ''; return; }
-  chipEl.innerHTML = kind === 'mine' ? ic('check') + `<span>твой · <b>$${money}</b></span>`
+  chipEl.innerHTML = kind === 'mine' ? ic('check') + `<span>твой · <b>$${money(amount)}</b></span>`
     : kind === 'foreign' ? ic('lock') + '<span>чужой мамонт</span>'
       : ic('plus') + '<span>не в CRM</span>';
   chipEl.className = 'nykiss-qb__chip is-shown is-' + kind;
@@ -792,13 +890,13 @@ function setChip(kind: 'mine' | 'none' | 'foreign' | '', money = 0) {
 async function refreshBadge() {
   setChip('');
   if(!getKey()) return;
-  const m = await getOpenMammoth();
-  if(!m) return;
   const forThis = currentPeerId;
+  const m = await getOpenMammoth();
+  if(!m || currentPeerId !== forThis) return;
   try {
-    const b = await apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
+    const b = await lookup(m);
     if(currentPeerId !== forThis) return; // chat switched mid-request
-    if(b?.mine) setChip('mine', b.total_deposited || 0);
+    if(b?.mine) setChip('mine', b.total_deposited);
     else if(b?.taken_by_other) setChip('foreign');
     else setChip('none');
   } catch(e) { /* keep hidden on error */ }
@@ -825,10 +923,7 @@ async function nykissDebug() {
   console.info('[nykiss] build', BUILD, '| key', !!getKey(), '| heat', counts, '| by @username only', heatByName.size);
   console.info('[nykiss] folders as the app shows them'); console.table(ui.map(row));
   console.info('[nykiss] folders on the server'); console.table(srv.map(row));
-  console.info('[nykiss] plan', planFolders(srv.filter((f: any) => f._ === 'dialogFilter' && f.id > 1).map((f: any) => ({
-    id: f.id, title: f.title?.text || '', includePeerIds: f.includePeerIds || [], pinnedPeerIds: f.pinnedPeerIds || [],
-    excludePeerIds: f.excludePeerIds || [], flags: Object.keys(f.pFlags || {}), hasColor: f.color != null
-  })), want, owned), '| chats in more than one of our folders:', inManyFolders);
+  console.info('[nykiss] plan', planFolders(toPlannerFolders(srv), want, owned), '| chats in more than one of our folders:', inManyFolders);
   return {build: BUILD, heat: counts, want, owned, inManyFolders};
 }
 
@@ -840,17 +935,21 @@ async function nykissRepair() {
       if(f._ === 'dialogFilter' && f.id > 1 && titles.includes(f.title?.text)) await fs.updateDialogFilter(f, true);
     }
   };
-  if(navigator.locks) await navigator.locks.request('nykiss-heat-folders-v3', run); else await run();
+  await withFolderLock(run, true);
   await refreshHeat();
   await reconcileHeatFolders();
   return nykissDebug();
 }
 
-// --- visibility / peer-change poll ---
+// --- visibility / peer change ---
+// Runs on appImManager's `peer_changed` (instant) and on a slow timer for what has no event: the chat
+// column sliding in and out on a phone, avatars rendered before the observer attached.
+const SYNC_MS = 1000;
 let syncTick = 0;
 function sync() {
   syncTick++;
-  const visible = !!getActiveInput();
+  // no open chat → no input: skip the DOM query (and the layout read behind offsetParent) altogether
+  const visible = !!appImManager.chat?.peerId && !!getActiveInput();
   rootEl.classList.toggle('is-visible', visible);
   if(!visible) { closeMenu(); currentPeerId = null; setChip(''); return; }
 
@@ -865,7 +964,7 @@ function sync() {
   }
 
   // safety net for avatars that were rendered before the observer attached
-  if(syncTick % 25 === 0) applyAllRings();
+  if(syncTick % 10 === 0) applyAllRings();
 }
 
 export function initQuickBubble() {
@@ -907,5 +1006,7 @@ export function initQuickBubble() {
   window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
   window.setInterval(refreshHeat, 20000);
-  window.setInterval(sync, 600);
+  initPinBot();
+  window.setInterval(sync, SYNC_MS);
+  appImManager.addEventListener('peer_changed', sync);
 }

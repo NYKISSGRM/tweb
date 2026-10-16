@@ -1,3 +1,5 @@
+@use "../shared" as *;
+
 .avatar-like {
   --size: 54px;
   --multiplier: 1;
@@ -505,8 +507,11 @@
     box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#E05A20, 0.95),
       0 0 var(--nykiss-glow, 8px) rgba(#E05A20, 0.45);
 
+    // the pulse repaints the avatar every frame (box-shadow is not compositor-only): full animation level only
     @media (prefers-reduced-motion: no-preference) {
-      animation: nykiss-avatar-hot 1.4s ease-in-out infinite;
+      @include animation-level(2) {
+        animation: nykiss-avatar-hot 1.4s ease-in-out infinite;
+      }
     }
   }
 }
@@ -544,6 +549,8 @@
   box-shadow: 0 0 0 var(--nykiss-ring) rgba(#E05A20, 0.95), 0 0 var(--nykiss-glow) rgba(#E05A20, 0.45);
 
   @media (prefers-reduced-motion: no-preference) {
-    animation: nykiss-avatar-hot 1.4s ease-in-out infinite;
+    @include animation-level(2) {
+      animation: nykiss-avatar-hot 1.4s ease-in-out infinite;
+    }
   }
 }

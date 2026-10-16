@@ -28,6 +28,25 @@ export const FOLDER_CAP = 100; // Telegram: chats per folder
 const sameSet = (a: number[], b: number[]) => a.length === b.length && b.every((id) => a.includes(id));
 
 /**
+ * The account's filters as the planner sees them. Only plain `dialogFilter`s with a real id take part:
+ * shared chatlist folders (`dialogFilterChatlist`), the «All» default and anything else are never touched,
+ * even when they carry one of our titles.
+ */
+export function toPlannerFolders(filters: any[]): PlannerFolder[] {
+  return filters
+  .filter((f) => f?._ === 'dialogFilter' && f.id > 1)
+  .map((f) => ({
+    id: f.id,
+    title: f.title?.text || '',
+    includePeerIds: f.includePeerIds || [],
+    pinnedPeerIds: f.pinnedPeerIds || [],
+    excludePeerIds: f.excludePeerIds || [],
+    flags: Object.keys(f.pFlags || {}).filter((k) => f.pFlags[k]),
+    hasColor: f.color != null
+  }));
+}
+
+/**
  * The folder is the CRM's: after the plan it holds only chats the CRM gives that temperature.
  *
  * @param folders the account's custom folders, fresh from the server
@@ -55,10 +74,15 @@ export function planFolders(
     else byKey[key] = f;
   }
 
+  // a chat handed to both temperatures is hot: the one folder per chat rule beats the input
+  const hot = new Set(owned.hot);
   for(const key of ['hot', 'warm'] as HeatKey[]) {
     const f = byKey[key];
-    const current = f ? [...f.pinnedPeerIds, ...f.includePeerIds] : [];
-    const target = [...new Set([...current.filter((id) => owned[key].includes(id)), ...want[key]])].slice(0, FOLDER_CAP);
+    const current = f ? [...new Set([...f.pinnedPeerIds, ...f.includePeerIds])] : [];
+    const allowed = (id: number) => key === 'hot' || !hot.has(id);
+    const target = [...new Set([...current.filter((id) => owned[key].includes(id)), ...want[key]])]
+    .filter(allowed)
+    .slice(0, FOLDER_CAP);
 
     if(!target.length) {
       // a folder cannot be empty on the server — an emptied one goes away
