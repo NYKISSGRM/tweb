@@ -1,0 +1,66 @@
+// NYKISS Gram — «Ночная касса»: gold is an accent, not a fill.
+// One file, plain overrides on descendants of html.night (themeController writes the palette inline on <html>,
+// so descendants are the only place that wins without !important). Included last from style.scss.
+// Palette: felt #070807, surface #15140d, gold #C9A227 / #E2C25A, bronze #2a2410, text #F3EEDF.
+
+html.night {
+  --badge-text-color: #070807;
+
+  // outgoing bubbles: dark amber with warm text instead of a solid gold slab
+  .chat .bubble.is-out {
+    --message-background-color: #2a2410;
+    --light-message-background-color: #2a2410;
+    --light-filled-message-background-color: #2a2410;
+    --dark-message-background-color: #2a2410;
+    --message-icon-text-color: #2a2410;
+    --message-primary-color: #e2c25a;
+    --message-primary-color-rgb: 226, 194, 90;
+    --peer-color-rgb: 226, 194, 90;
+    --link-color: #e2c25a;
+    --message-status-color: #e2c25a;
+    --message-time-color: rgba(243, 238, 223, .55);
+    --selection-background-color: rgba(226, 194, 90, .28);
+
+    .bubble-content {
+      color: var(--primary-text-color);
+    }
+  }
+
+  // incoming bubbles a step lighter than the surface, time quieter
+  .chat .bubble:not(.is-out) {
+    --message-time-color: #7d7664;
+  }
+
+  // selected chat in the list: a plate with a gold edge, not a gold fill (text stays light on a dark plate)
+  .chatlist-chat.active {
+    --background: rgba(201, 162, 39, .12) !important;
+    box-shadow: inset 2px 0 0 #c9a227;
+
+    .avatar-stories-svg-circle {
+      stroke: #e2c25a !important;
+    }
+
+    .badge-fake {
+      color: #e2c25a;
+      border-color: #e2c25a;
+    }
+  }
+
+  &.is-rtl .chatlist-chat.active {
+    box-shadow: inset -2px 0 0 #c9a227;
+  }
+
+  // the wallpaper photo stays, but sits much deeper so text and bubbles win (injected style comes later: more specific selector)
+  .nykiss-chat-wallpaper {
+    filter: blur(4px) saturate(.7) brightness(.62);
+  }
+
+  .nykiss-chat-wallpaper::after {
+    background: linear-gradient(180deg, rgba(7, 8, 6, .62), rgba(5, 5, 4, .8));
+  }
+
+  // calmer message highlight (was olive green)
+  .chat {
+    --message-highlighting-color: rgba(226, 194, 90, .22);
+  }
+}
