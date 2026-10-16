@@ -14,25 +14,32 @@ export type PlannerFolder = {
   title: string,
   includePeerIds: number[],
   pinnedPeerIds: number[],
-  excludePeerIds: number[]
+  excludePeerIds: number[],
+  flags?: string[],   // names of the folder's pFlags that are set (contacts, groups, …)
+  hasColor?: boolean
 };
 
 export type FolderOp =
   | {type: 'delete', id: number}
   | {type: 'upsert', key: HeatKey, id: number | null, peerIds: number[]};
 
+export const FOLDER_CAP = 100; // Telegram: chats per folder
+
 const sameSet = (a: number[], b: number[]) => a.length === b.length && b.every((id) => a.includes(id));
 
 /**
- * @param folders   the account's custom folders, fresh from the server
- * @param want      per temperature: chats that belong in the folder AND can be addressed (access_hash known), capped
- * @param unresolved per temperature: CRM chats with that temperature we could not address yet — while there are
- *                  some, an empty `want` must not delete the folder (the user list may simply not be loaded yet)
+ * The folder is the CRM's: after the plan it holds only chats the CRM gives that temperature.
+ *
+ * @param folders the account's custom folders, fresh from the server
+ * @param want    per temperature: chats to ADD — the CRM says so and tweb can address them (access hash known)
+ * @param owned   per temperature: EVERY chat the CRM gives that temperature, addressable or not. A chat of
+ *                this set that is already in the folder stays even when it cannot be addressed right now;
+ *                any other chat — cold, of the other temperature, unknown, hand-added — is taken out.
  */
 export function planFolders(
   folders: PlannerFolder[],
   want: Record<HeatKey, number[]>,
-  unresolved: Record<HeatKey, number> = {warm: 0, hot: 0}
+  owned: Record<HeatKey, number[]> = want
 ): FolderOp[] {
   const ops: FolderOp[] = [];
   const byKey: Partial<Record<HeatKey, PlannerFolder>> = {};
@@ -50,18 +57,22 @@ export function planFolders(
 
   for(const key of ['hot', 'warm'] as HeatKey[]) {
     const f = byKey[key];
-    const ids = want[key];
-    if(!ids.length) {
+    const current = f ? [...f.pinnedPeerIds, ...f.includePeerIds] : [];
+    const target = [...new Set([...current.filter((id) => owned[key].includes(id)), ...want[key]])].slice(0, FOLDER_CAP);
+
+    if(!target.length) {
       // a folder cannot be empty on the server — an emptied one goes away
-      if(f && !unresolved[key]) ops.push({type: 'delete', id: f.id});
+      if(f) ops.push({type: 'delete', id: f.id});
       continue;
     }
     const clean = f
-      && sameSet([...f.pinnedPeerIds, ...f.includePeerIds], ids)
+      && sameSet(current, target)
       && !f.pinnedPeerIds.length
-      && !f.excludePeerIds.length;
+      && !f.excludePeerIds.length
+      && !f.flags?.length
+      && !f.hasColor;
     if(clean) continue;
-    ops.push({type: 'upsert', key, id: f ? f.id : null, peerIds: ids});
+    ops.push({type: 'upsert', key, id: f ? f.id : null, peerIds: target});
   }
 
   return ops;

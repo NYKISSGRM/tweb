@@ -13,7 +13,7 @@
 
 import appImManager from '@lib/appImManager';
 import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUsernames';
-import {planFolders, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
+import {planFolders, FOLDER_CAP, LEGACY_HEAT_FOLDER_TITLES, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
 
 const API = 'https://wcrm.206.71.148.212.nip.io/api/v1';
 const KEY_LS = 'nykiss_messenger_key';
@@ -146,33 +146,49 @@ function watchAvatars() {
   applyAllRings();
 }
 
+// The CRM's temperature of a chat, or null when the CRM does not know him (not attached).
+function knownHeat(peerId: number | string | null | undefined): Heat | null {
+  if(peerId == null) return null;
+  const id = String(peerId);
+  const byId = heatMap.get(id);
+  if(byId) return byId;
+  const name = peerUsername.get(id);
+  return (name && heatByName.get(name)) || null;
+}
+
+// The ring of the N button exists only for a мамонт that is in the CRM (cold included).
 function updateFabRing(telegramId?: number | null) {
   if(!fabEl) return;
-  const heat = heatOf(telegramId ?? currentPeerId);
-  if(heat === 'cold') delete fabEl.dataset.heat;
-  else fabEl.dataset.heat = heat;
+  const heat = knownHeat(telegramId ?? currentPeerId);
+  if(heat) fabEl.dataset.heat = heat;
+  else delete fabEl.dataset.heat;
 }
 
 // ---- Heat folders: real Telegram folders «Тёплые» / «Горячие» -----------------
 // The CRM owns them: content = exactly the chats with that temperature (see heatFolders.ts).
 // Cold chats have no folder. Folders live on the Telegram account, so they follow the operator everywhere.
 
-const FOLDER_CAP = 100; // Telegram: chats per folder
 let folderDirty = false;
 let folderRunning: Promise<void> | null = null;
 
-async function runFolderPass() {
-  const {filtersStorage: fs, appPeersManager, appUsersManager} = appImManager.managers;
+// What the folders must hold: `owned` = every chat the CRM gives that temperature, `want` = those tweb can address.
+async function computeFolderTargets() {
+  const {appUsersManager} = appImManager.managers;
   const want: Record<HeatKey, number[]> = {warm: [], hot: []};
-  const unresolved: Record<HeatKey, number> = {warm: 0, hot: 0};
-
+  const owned: Record<HeatKey, number[]> = {warm: [], hot: []};
   for(const [id, heat] of allHeat()) {
     if(heat === 'cold') continue;
+    owned[heat].push(+id);
     const user: any = await appUsersManager.getUser(+id);
     // a chat can only join a folder when tweb holds its access hash
     if(user && (user.access_hash || user.pFlags?.self) && want[heat].length < FOLDER_CAP) want[heat].push(+id);
-    else unresolved[heat]++;
   }
+  return {want, owned};
+}
+
+async function runFolderPass() {
+  const {filtersStorage: fs, appPeersManager} = appImManager.managers;
+  const {want, owned} = await computeFolderTargets();
 
   const fresh: any[] = (await fs.getDialogFilters(true)).filter((f: any) => f._ === 'dialogFilter' && f.id > 1);
   const ops = planFolders(fresh.map(f => ({
@@ -180,8 +196,10 @@ async function runFolderPass() {
     title: f.title?.text || '',
     includePeerIds: f.includePeerIds || [],
     pinnedPeerIds: f.pinnedPeerIds || [],
-    excludePeerIds: f.excludePeerIds || []
-  })), want, unresolved);
+    excludePeerIds: f.excludePeerIds || [],
+    flags: Object.keys(f.pFlags || {}).filter(k => (f.pFlags as any)[k]),
+    hasColor: f.color != null
+  })), want, owned);
 
   for(const op of ops) {
     if(op.type === 'delete') {
@@ -213,7 +231,7 @@ function reconcileHeatFolders(): Promise<void> {
     while(folderDirty) {
       folderDirty = false;
       try {
-        if(navigator.locks) await navigator.locks.request('nykiss-heat-folders', runFolderPass);
+        if(navigator.locks) await navigator.locks.request('nykiss-heat-folders-v3', runFolderPass);
         else await runFolderPass();
       } catch(e) { console.warn('[nykiss] heat folders:', e); }
     }
@@ -312,84 +330,195 @@ async function getOpenMammoth(): Promise<OpenMammoth | null> {
 // ---- styles ------------------------------------------------------------------
 
 const STYLE_ID = 'nykiss-quick-bubble-style';
+// shown in the menu header and the console: the first thing to check when something "does not update"
+const BUILD: string = String((import.meta as any).env?.VITE_NYKISS_SHA || 'dev').slice(0, 7);
+
+const SPRITE = `<svg id="nykiss-qb-sprite" width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="ic-cold" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9M9.5 4.8 12 7l2.5-2.2M9.5 19.2 12 17l2.5 2.2"/></symbol>
+<symbol id="ic-warm" viewBox="0 0 24 24"><path d="M12 2.8c.7 3.6-3.2 5.6-4.9 9-1.6 3.3.2 8.2 4.9 8.2s6-4.2 4.8-7.3c-.6 1.3-1.6 2-2.7 2-1.6-1.8 1.2-6.6-2.1-11.9Z"/><path d="M12 20.2c-2 0-3.2-1.3-3.2-3 0-1.5 1.5-2.5 3.2-4.3 1.7 1.8 3.2 2.8 3.2 4.3 0 1.7-1.2 3-3.2 3Z"/></symbol>
+<symbol id="ic-hot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="5.4" stroke-dasharray="1.6 1.6"/><path d="M12 9.5v5"/></symbol>
+<symbol id="ic-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="ic-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></symbol>
+<symbol id="ic-lock" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9.5" rx="1.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+<symbol id="ic-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+</svg>`;
+
+function ic(name: string, cls = ''): string {
+  return `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" aria-hidden="true"><use href="#ic-${name}"/></svg>`;
+}
 
 function injectStyle() {
   if(document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-.nykiss-qb { position: fixed; right: 16px; bottom: 104px; z-index: 5;
-  display: none; font-family: var(--font-family, inherit);
-  -webkit-user-select: none; user-select: none; }
-.nykiss-qb.is-visible { display: block; }
+.nykiss-qb{
+  --nq-gold:#C9A227; --nq-gold-hi:#e9c860; --nq-gold-lo:#8a6d14;
+  --nq-ink:#070807; --nq-surface:#12110b; --nq-surface-2:#1a1810;
+  --nq-text:#F3EEDF; --nq-muted:#9a927d; --nq-line:#241f12; --nq-hair:rgba(201,162,39,.28);
+  --nq-cold:#7fa8c4; --nq-warm:#e8a23a; --nq-hot:#e5532d; --nq-green:#32a271; --nq-red:#c0525b;
+  --nq-fab:52px; --nq-gap:12px;
+  position:fixed; z-index:5; display:none;
+  right:max(16px, env(safe-area-inset-right));
+  bottom:calc(104px + env(safe-area-inset-bottom));
+  font-family:Manrope,var(--font-family,system-ui),sans-serif;
+  -webkit-user-select:none;user-select:none; -webkit-tap-highlight-color:transparent;
+}
+.nykiss-qb.is-visible{display:block}
+.nykiss-qb svg{display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.nykiss-qb button{font-family:inherit}
 
-.nykiss-qb__fab { width: 48px; height: 48px; border-radius: 50%; border: none;
-  cursor: pointer; color: #1a1206;
-  background: linear-gradient(135deg, var(--primary-color, #C9A227), #B8891E);
-  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06) inset;
-  font-weight: 800; font-size: 22px; line-height: 1;
-  display: flex; align-items: center; justify-content: center;
-  transition: transform .18s ease, box-shadow .2s ease; }
-.nykiss-qb__fab:hover { transform: translateY(-2px) scale(1.04); }
-.nykiss-qb__fab:active { transform: scale(.96); }
-.nykiss-qb.is-open .nykiss-qb__fab { transform: rotate(45deg); }
-.nykiss-qb__fab[data-heat="cold"] { box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 3px #2A6B9A; }
-.nykiss-qb__fab[data-heat="warm"] { box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 3px #C9A227; }
-.nykiss-qb__fab[data-heat="hot"]  { box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 3px #E05A20; }
+/* --- FAB --- */
+.nykiss-qb__fab{position:relative;width:var(--nq-fab);height:var(--nq-fab);padding:0;border:0;border-radius:50%;cursor:pointer;
+  display:grid;place-items:center;color:#1a1206;
+  font:600 25px/1 Fraunces,Georgia,serif;
+  background:radial-gradient(120% 120% at 30% 22%,#f6e8ba 0%,#d8b451 42%,#a07d23 100%);
+  box-shadow:0 8px 22px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45),inset 0 -2px 4px rgba(90,60,0,.35);
+  outline:2px solid transparent;outline-offset:3px;
+  transition:transform .2s cubic-bezier(.2,.8,.2,1),outline-color .25s;}
+.nykiss-qb__fab:hover{transform:translateY(-1px)}
+.nykiss-qb__fab:active{transform:scale(.95)}
+.nykiss-qb__fab:focus-visible{outline-color:var(--nq-text)}
+.nykiss-qb__fab-n{transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.nykiss-qb.is-open .nykiss-qb__fab-n{transform:scale(.92)}
+.nykiss-qb.is-open .nykiss-qb__fab{box-shadow:0 4px 12px rgba(0,0,0,.6),inset 0 2px 5px rgba(90,60,0,.45)}
+/* ring: gap + thin colored line, + corner badge so it is not color-only */
+.nykiss-qb__fab[data-heat=cold]{outline-color:var(--nq-cold)}
+.nykiss-qb__fab[data-heat=warm]{outline-color:var(--nq-warm)}
+.nykiss-qb__fab[data-heat=hot]{outline-color:var(--nq-hot);animation:nq-ember 2.6s ease-in-out infinite}
+@keyframes nq-ember{0%,100%{box-shadow:0 8px 22px rgba(0,0,0,.55),0 0 0 0 rgba(229,83,45,0),inset 0 1px 0 rgba(255,255,255,.45),inset 0 -2px 4px rgba(90,60,0,.35)}
+  50%{box-shadow:0 8px 22px rgba(0,0,0,.55),0 0 0 9px rgba(229,83,45,.14),inset 0 1px 0 rgba(255,255,255,.45),inset 0 -2px 4px rgba(90,60,0,.35)}}
+.nykiss-qb__badge{position:absolute;right:-6px;top:-6px;width:20px;height:20px;border-radius:50%;display:none;place-items:center;
+  background:var(--nq-ink);box-shadow:0 0 0 1.5px currentColor}
+.nykiss-qb__badge svg{width:12px;height:12px}
+.nykiss-qb__fab[data-heat=cold] .nykiss-qb__badge{display:grid;color:var(--nq-cold)}
+.nykiss-qb__fab[data-heat=warm] .nykiss-qb__badge{display:grid;color:var(--nq-warm)}
+.nykiss-qb__fab[data-heat=hot]  .nykiss-qb__badge{display:grid;color:var(--nq-hot)}
+.nykiss-qb__badge>svg{display:none}
+.nykiss-qb__fab[data-heat=cold] .i-cold,.nykiss-qb__fab[data-heat=warm] .i-warm,.nykiss-qb__fab[data-heat=hot] .i-hot{display:block}
 
-.nykiss-qb__heat { display:flex; gap:8px; align-items:center; padding:8px 6px 4px; }
-.nykiss-qb__heat-label { font-size:11px; opacity:.45; text-transform:uppercase; letter-spacing:.06em; flex:1; }
-.nykiss-qb__err { font-size:12px; color:#f0a9a0; padding:6px 4px 0; line-height:1.35; }
-.nykiss-qb__heat-pill { padding:5px 11px; border-radius:20px; font-size:12.5px; font-weight:600; cursor:pointer;
-  color:inherit; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.12); transition:all .15s; }
-.nykiss-qb__heat-pill:hover { opacity:.85; }
-.nykiss-qb__heat-pill:disabled { opacity:.5; cursor:default; }
-.nykiss-qb__heat-pill[data-heat="cold"].is-active { background:rgba(42,107,154,.25); border-color:#2A6B9A; color:#5ba8d4; }
-.nykiss-qb__heat-pill[data-heat="warm"].is-active { background:rgba(201,162,39,.25); border-color:#C9A227; color:#e9c860; }
-.nykiss-qb__heat-auto { padding:5px 11px; border-radius:20px; font-size:12.5px; font-weight:700;
-  background:rgba(224,90,32,.25); border:1.5px solid #E05A20; color:#FF6B30; }
+/* --- CHIP --- */
+.nykiss-qb__chip{position:absolute;right:0;bottom:calc(var(--nq-fab) + 14px);display:none;align-items:center;gap:6px;white-space:nowrap;
+  height:26px;padding:0 10px 0 8px;border-radius:5px;background:var(--nq-surface);color:var(--nq-text);
+  font:700 12px/1 Manrope,sans-serif;letter-spacing:.01em;
+  box-shadow:0 6px 16px rgba(0,0,0,.5),inset 0 0 0 1px var(--nq-hair);
+  animation:nq-chip .22s cubic-bezier(.2,.8,.2,1);}
+.nykiss-qb__chip svg{width:14px;height:14px;flex:none}
+.nykiss-qb__chip.is-shown{display:inline-flex}
+.nykiss-qb__chip b{font-variant-numeric:tabular-nums;font-weight:800;color:var(--nq-gold-hi)}
+.nykiss-qb__chip.is-mine svg{color:var(--nq-green)}
+.nykiss-qb__chip.is-none{color:var(--nq-muted)}
+.nykiss-qb__chip.is-none svg{color:var(--nq-gold)}
+.nykiss-qb__chip.is-foreign{color:#e6b3b6;box-shadow:0 6px 16px rgba(0,0,0,.5),inset 0 0 0 1px rgba(192,82,91,.5)}
+.nykiss-qb__chip.is-foreign svg{color:var(--nq-red)}
+.nykiss-qb.is-open .nykiss-qb__chip{display:none}
+@keyframes nq-chip{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
-/* status chip above the FAB — reflects CRM status of the open chat */
-.nykiss-qb__chip { position: absolute; right: 0; bottom: 58px; white-space: nowrap;
-  padding: 5px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
-  background: var(--surface-color, #1a1206); color: var(--primary-text-color, #f0ead8);
-  box-shadow: 0 6px 18px rgba(0,0,0,.4), 0 0 0 1px rgba(201,162,39,.18);
-  display: none; }
-.nykiss-qb__chip.is-shown { display: block; }
-.nykiss-qb__chip.is-mine { box-shadow: 0 6px 18px rgba(0,0,0,.4), 0 0 0 1px rgba(201,162,39,.5); }
-.nykiss-qb__chip.is-foreign { box-shadow: 0 6px 18px rgba(0,0,0,.4), 0 0 0 1px rgba(201,80,80,.5); color: #f0c9c9; }
+/* --- MENU --- */
+.nykiss-qb__menu{position:absolute;right:0;bottom:calc(var(--nq-fab) + var(--nq-gap));
+  width:min(320px,calc(100vw - 32px));max-height:calc(100vh - 104px - var(--nq-fab) - var(--nq-gap) - 56px);overflow:auto;
+  background:var(--nq-surface);color:var(--nq-text);border-radius:6px;
+  box-shadow:0 22px 60px rgba(0,0,0,.7),0 0 0 1px var(--nq-hair);
+  transform-origin:100% 100%;opacity:0;transform:translateY(10px) scale(.97);pointer-events:none;visibility:hidden;
+  transition:opacity .18s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility 0s .22s;}
+.nykiss-qb.is-open .nykiss-qb__menu{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition-delay:0s}
+.nykiss-qb__menu::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;opacity:.5;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+/* top accent bar: color = temperature */
+.nykiss-qb__menu::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;border-radius:6px 6px 0 0;background:var(--nq-gold);opacity:.9}
+.nykiss-qb__menu[data-heat=cold]::after{background:var(--nq-cold)}
+.nykiss-qb__menu[data-heat=warm]::after{background:var(--nq-warm)}
+.nykiss-qb__menu[data-heat=hot]::after{background:var(--nq-hot)}
+.nykiss-qb__menu[data-kind=foreign]::after{background:var(--nq-red)}
 
-.nykiss-qb__menu { position: absolute; right: 0; bottom: 60px; width: 280px;
-  max-height: 70vh; overflow-y: auto; padding: 10px; border-radius: 16px;
-  background: var(--surface-color, #1a1206); color: var(--primary-text-color, #f0ead8);
-  box-shadow: 0 12px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(201,162,39,.18);
-  opacity: 0; transform: translateY(8px) scale(.98); pointer-events: none;
-  transition: opacity .16s ease, transform .16s ease; }
-.nykiss-qb.is-open .nykiss-qb__menu { opacity: 1; transform: none; pointer-events: auto; }
+.nykiss-qb__head{display:flex;align-items:center;gap:8px;padding:14px 16px 0;
+  font:800 10.5px/1 Manrope,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--nq-gold)}
+.nykiss-qb__head i{flex:1;height:1px;background:var(--nq-line)}
+.nykiss-qb__who{padding:12px 16px 14px}
+.nykiss-qb__name{margin:0;font:600 23px/1.15 Fraunces,Georgia,serif;color:var(--nq-text);letter-spacing:-.005em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nykiss-qb__sub{margin-top:4px;font:500 12.5px/1.3 Manrope,sans-serif;color:var(--nq-muted)}
 
-.nykiss-qb__title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
-  opacity: .55; padding: 4px 6px 8px; }
-.nykiss-qb__status { padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4;
-  background: rgba(201,162,39,.08); margin-bottom: 8px; }
-.nykiss-qb__status b { font-weight: 700; }
-.nykiss-qb__status .muted { opacity: .6; }
+.nykiss-qb__stats{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--nq-line);border-bottom:1px solid var(--nq-line)}
+.nykiss-qb__stat{padding:11px 16px 12px}
+.nykiss-qb__stat+.nykiss-qb__stat{border-left:1px solid var(--nq-line)}
+.nykiss-qb__lbl{font:700 10px/1 Manrope,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--nq-muted)}
+.nykiss-qb__val{margin-top:7px;font:600 17px/1.1 Manrope,sans-serif;font-variant-numeric:tabular-nums;color:var(--nq-text)}
+.nykiss-qb__val.is-money{font:600 22px/1 Fraunces,Georgia,serif;color:var(--nq-gold-hi)}
 
-.nykiss-qb__btn { display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 11px 12px; border: none; border-radius: 10px; cursor: pointer;
-  text-align: left; font-size: 14px; font-weight: 600; transition: filter .12s ease; }
-.nykiss-qb__btn-primary { color: #1a1206; background: linear-gradient(135deg, #C9A227, #B8891E); }
-.nykiss-qb__btn-primary:hover { filter: brightness(1.08); }
-.nykiss-qb__btn-ghost { color: inherit; background: transparent; font-weight: 500; }
-.nykiss-qb__btn-ghost:hover { background: rgba(201,162,39,.12); }
-.nykiss-qb__btn:disabled { opacity: .45; cursor: default; }
-.nykiss-qb__hint { font-size: 12px; opacity: .55; padding: 6px; line-height: 1.4; }
+.nykiss-qb__sec{padding:14px 16px 4px}
+.nykiss-qb__sec .nykiss-qb__lbl{margin-bottom:9px;display:flex;justify-content:space-between}
+.nykiss-qb__sec .nykiss-qb__lbl em{font-style:normal;letter-spacing:.06em;text-transform:none;font-weight:600}
 
-/* CRM Header Strip — shown under chat name in topbar */
-  text-overflow: ellipsis; line-height: 1.4; padding-top: 3px; max-width: 280px;
-  opacity: .8; transition: color .2s; }
+/* segmented heat control: 3 steps, 3rd is locked */
+.nykiss-qb__seg{position:relative;display:grid;grid-template-columns:repeat(3,1fr);padding:3px;border-radius:5px;
+  background:#0a0a07;box-shadow:inset 0 0 0 1px var(--nq-line),inset 0 2px 6px rgba(0,0,0,.5)}
+.nykiss-qb__thumb{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/3);border-radius:3px;
+  background:var(--nq-surface-2);box-shadow:inset 0 0 0 1px currentColor,0 3px 8px rgba(0,0,0,.5);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),color .2s;color:var(--nq-cold)}
+.nykiss-qb__seg[data-v=cold] .nykiss-qb__thumb{transform:translateX(0);color:var(--nq-cold)}
+.nykiss-qb__seg[data-v=warm] .nykiss-qb__thumb{transform:translateX(100%);color:var(--nq-warm)}
+.nykiss-qb__seg[data-v=hot]  .nykiss-qb__thumb{transform:translateX(200%);color:var(--nq-hot);
+  background:linear-gradient(180deg,rgba(229,83,45,.2),rgba(229,83,45,.08))}
+.nykiss-qb__opt{position:relative;z-index:1;min-height:56px;padding:8px 2px;border:0;background:none;cursor:pointer;color:var(--nq-muted);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  font:700 12px/1 Manrope,sans-serif;transition:color .2s}
+.nykiss-qb__opt svg{width:20px;height:20px}
+.nykiss-qb__opt:hover{color:var(--nq-text)}
+.nykiss-qb__opt[aria-checked=true]{cursor:default}
+.nykiss-qb__opt[data-k=cold][aria-checked=true]{color:var(--nq-cold)}
+.nykiss-qb__opt[data-k=warm][aria-checked=true]{color:var(--nq-warm)}
+.nykiss-qb__opt[data-k=hot]{cursor:not-allowed;color:#5d5748}
+.nykiss-qb__opt[data-k=hot][aria-checked=true]{color:var(--nq-hot);cursor:default}
+.nykiss-qb__opt[data-k=hot] .lock{position:absolute;right:7px;top:7px;width:11px;height:11px;opacity:.8}
+.nykiss-qb__opt:focus-visible{outline:2px solid var(--nq-gold-hi);outline-offset:-2px;border-radius:3px}
+.nykiss-qb__seg.is-busy .nykiss-qb__opt{pointer-events:none}
+.nykiss-qb__seg.is-busy .nykiss-qb__thumb{opacity:.7}
+.nykiss-qb__note{padding:10px 16px 16px;font:500 12.5px/1.45 Manrope,sans-serif;color:var(--nq-muted)}
+.nykiss-qb__note b{color:var(--nq-text);font-weight:700}
+
+/* paid seal */
+.nykiss-qb__seal{margin:12px 16px 0;padding:10px 12px;display:flex;gap:11px;align-items:center;border-radius:4px;
+  box-shadow:inset 0 0 0 1px rgba(229,83,45,.45);background:rgba(229,83,45,.07)}
+.nykiss-qb__seal svg{width:26px;height:26px;color:var(--nq-hot);flex:none}
+.nykiss-qb__seal strong{display:block;font:800 11px/1 Manrope;letter-spacing:.16em;text-transform:uppercase;color:#f07a54}
+.nykiss-qb__seal span{display:block;margin-top:5px;font:500 12.5px/1.35 Manrope;color:var(--nq-muted)}
+
+/* buttons */
+.nykiss-qb__cta{display:flex;align-items:center;justify-content:center;gap:9px;width:calc(100% - 32px);margin:0 16px 16px;min-height:48px;
+  border:0;border-radius:4px;cursor:pointer;color:#1a1206;font:800 14px/1 Manrope,sans-serif;letter-spacing:.01em;
+  background:linear-gradient(180deg,#e9c860 0%,#cfa73a 55%,#b8902a 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 6px 16px rgba(201,162,39,.18);
+  position:relative;overflow:hidden;transition:transform .12s,filter .15s}
+.nykiss-qb__cta svg{width:18px;height:18px}
+.nykiss-qb__cta:hover{filter:brightness(1.07)}
+.nykiss-qb__cta:active{transform:scale(.985)}
+.nykiss-qb__cta::after{content:"";position:absolute;top:0;bottom:0;width:40%;left:-60%;transform:skewX(-20deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent)}
+.nykiss-qb__cta:hover::after{left:130%;transition:left .6s ease}
+.nykiss-qb__cta:disabled{filter:saturate(.5) brightness(.8);cursor:default}
+.nykiss-qb__spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(26,18,6,.3);border-top-color:#1a1206;animation:nq-spin .7s linear infinite}
+@keyframes nq-spin{to{transform:rotate(360deg)}}
+.nykiss-qb__cta:focus-visible{outline:2px solid var(--nq-text);outline-offset:2px}
+.nykiss-qb__hint{padding:12px 16px 16px;font:500 13px/1.5 Manrope,sans-serif;color:var(--nq-muted)}
+.nykiss-qb__hint b{color:var(--nq-text)}
+.nykiss-qb__lock{margin:14px 16px 16px;padding:11px 12px;display:flex;gap:10px;align-items:flex-start;border-radius:4px;
+  box-shadow:inset 0 0 0 1px rgba(192,82,91,.4);background:rgba(192,82,91,.07);font:500 12.5px/1.45 Manrope;color:#d9b3b6}
+.nykiss-qb__lock svg{width:18px;height:18px;color:var(--nq-red);flex:none;margin-top:1px}
+.nykiss-qb__err{margin:-6px 16px 14px;font:600 12px/1.35 Manrope;color:#e6a1a1}
+.nykiss-qb__pill{display:inline-flex;align-items:center;gap:6px}
+.nykiss-qb__dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+@media (max-width:480px){
+  .nykiss-qb{right:max(14px,env(safe-area-inset-right))}
+  .nykiss-qb__menu{width:calc(100vw - 28px);right:0}
+}
+@media (prefers-reduced-motion:reduce){.nykiss-qb *{animation:none!important;transition-duration:.01s!important}}
+.nykiss-qb__build{font:600 9px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:none;color:#5d5748}
 
 `;
   document.head.appendChild(style);
+  document.body.insertAdjacentHTML('beforeend', SPRITE);
 }
 
 // ---- DOM ---------------------------------------------------------------------
@@ -410,8 +539,15 @@ function getActiveInput(): HTMLElement | null {
   return inputs.find((el) => el.offsetParent !== null) || null;
 }
 
-function closeMenu() { rootEl.classList.remove('is-open'); }
-function openMenu() { rootEl.classList.add('is-open'); renderMenu(); }
+function closeMenu() {
+  rootEl.classList.remove('is-open');
+  fabEl.setAttribute('aria-expanded', 'false');
+}
+function openMenu() {
+  rootEl.classList.add('is-open');
+  fabEl.setAttribute('aria-expanded', 'true');
+  renderMenu();
+}
 function toggleMenu() { rootEl.classList.contains('is-open') ? closeMenu() : openMenu(); }
 
 // --- connect flow ---
@@ -420,14 +556,14 @@ async function promptConnect() {
   if(!key || !key.trim()) return;
   setKey(key.trim());
   try {
-    const me = await apiFetch('/messenger/whoami');
-    window.alert('Подключено: ' + (me?.display_name || 'воркер'));
+    await apiFetch('/messenger/whoami');
   } catch(e) {
     setKey('');
     window.alert('Ключ не подошёл. Проверь и вставь заново.');
   }
   renderMenu();
   refreshBadge();
+  refreshHeat();
 }
 
 function setErr(errEl: HTMLElement, msg: string) {
@@ -446,7 +582,7 @@ async function addMammoth(btn: HTMLButtonElement, errEl: HTMLElement) {
   const m = await getOpenMammoth();
   if(!m) { setErr(errEl, 'Открой личный чат с мамонтом.'); return; }
   btn.disabled = true;
-  btn.textContent = 'Добавляю…';
+  btn.innerHTML = '<i class="nykiss-qb__spin"></i>Добавляю…';
   setErr(errEl, '');
   try {
     await apiFetch('/messenger/mammoths', {
@@ -455,54 +591,75 @@ async function addMammoth(btn: HTMLButtonElement, errEl: HTMLElement) {
     });
     refreshBadge();
     refreshHeat();
-    renderMenu(); // the temperature picker appears right away
+    renderMenu(); // the temperature switch appears right away
   } catch(e: any) {
     btn.disabled = false;
-    btn.textContent = '➕ Добавить мамонта';
+    btn.innerHTML = ic('plus') + 'Добавить мамонта';
     setErr(errEl, e?.message === 'bad-key' ? errText(e) : 'Не удалось добавить.');
   }
 }
 
-// Temperature of an attached мамонт: cold (default) / warm (manual); hot only shown — it comes from money.
-function buildHeatRow(m: OpenMammoth, current: Heat, errEl: HTMLElement): HTMLElement {
-  const row = document.createElement('div');
-  row.className = 'nykiss-qb__heat';
-  const label = document.createElement('span');
-  label.className = 'nykiss-qb__heat-label';
-  label.textContent = 'Температура';
-  row.append(label);
+// --- menu ---
 
-  if(current === 'hot') {
-    const hot = document.createElement('span');
-    hot.className = 'nykiss-qb__heat-auto';
-    hot.textContent = '💰 Горячий · оплатил';
-    hot.title = 'Ставится сам, когда приходит оплата';
-    row.append(hot);
-    return row;
-  }
+const HEAT_NOTES: Record<Heat, string> = {
+  cold: 'Ещё не созрел. Переведи в <b>«Тёплый»</b>, когда он готов платить.',
+  warm: 'Ждёт оплату. Чат лежит в папке <b>«Тёплые»</b>.',
+  hot: ''
+};
+// the CRM labels carry an emoji ("🆕 Новый"); the interface has none
+const plainLabel = (s: string) => (s || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
 
-  const pills: Partial<Record<Heat, HTMLButtonElement>> = {};
+const menuHead = () =>
+  `<div class="nykiss-qb__head" title="build ${BUILD}">NYKISS CRM<i></i><span class="nykiss-qb__build">${BUILD}</span></div>`;
+const menuWho = (name: string, sub: string) =>
+  `<div class="nykiss-qb__who"><h3 class="nykiss-qb__name">${escapeHtml(name)}</h3><div class="nykiss-qb__sub">${escapeHtml(sub)}</div></div>`;
+const statusRow = (label: string, value: string, color = '') =>
+  `<div class="nykiss-qb__stats"><div class="nykiss-qb__stat" style="grid-column:1/-1"><div class="nykiss-qb__lbl">${label}</div>` +
+  `<div class="nykiss-qb__val"${color ? ` style="color:${color}"` : ''}>${value}</div></div></div>`;
+
+function setMenu(kind: string, heat: string, html: string) {
+  menuEl.dataset.kind = kind;
+  if(heat) menuEl.dataset.heat = heat;
+  else delete menuEl.dataset.heat;
+  menuEl.innerHTML = html;
+}
+
+function segHtml(heat: Heat): string {
+  const opt = (k: Heat, text: string) =>
+    `<button class="nykiss-qb__opt" role="radio" data-k="${k}" aria-checked="${heat === k}"` +
+    (k === 'hot' ? ' aria-disabled="true" tabindex="-1" title="Ставится автоматически после оплаты"' : '') +
+    `>${ic(k)}<span>${text}</span>${k === 'hot' && heat !== 'hot' ? ic('lock', 'lock') : ''}</button>`;
+  return `<div class="nykiss-qb__seg" role="radiogroup" aria-label="Температура" data-v="${heat}"><i class="nykiss-qb__thumb"></i>` +
+    `${opt('cold', 'Холодный')}${opt('warm', 'Тёплый')}${opt('hot', 'Горячий')}</div>`;
+}
+
+// Cold (default) / warm (manual) are switchable; hot only shows — it comes from money.
+function wireHeatSwitch(m: OpenMammoth, heat: Heat) {
+  const seg = menuEl.querySelector<HTMLElement>('.nykiss-qb__seg');
+  const note = menuEl.querySelector<HTMLElement>('.nykiss-qb__note');
+  const errEl = menuEl.querySelector<HTMLElement>('.nykiss-qb__err');
+  if(!seg || heat === 'hot') return;
+  const peerKey = String(m.telegram_id);
+  let current = heat;
+
   const paint = (h: Heat) => {
     current = h;
-    (Object.keys(pills) as Heat[]).forEach(k => pills[k].classList.toggle('is-active', k === h));
+    seg.dataset.v = h;
+    menuEl.dataset.heat = h;
+    seg.querySelectorAll<HTMLElement>('.nykiss-qb__opt').forEach(o => o.setAttribute('aria-checked', String(o.dataset.k === h)));
+    if(note) note.innerHTML = HEAT_NOTES[h];
   };
-  const lock = (on: boolean) => (Object.values(pills) as HTMLButtonElement[]).forEach(b => { b.disabled = on; });
-  const peerKey = String(m.telegram_id);
 
-  ([['cold', '🧊 Холодный'], ['warm', '🔥 Тёплый']] as const).forEach(([key, text]) => {
-    const b = document.createElement('button');
-    b.className = 'nykiss-qb__heat-pill' + (current === key ? ' is-active' : '');
-    b.dataset.heat = key;
-    b.textContent = text;
-    pills[key] = b;
-    b.addEventListener('click', async e => {
+  seg.querySelectorAll<HTMLElement>('.nykiss-qb__opt[data-k="cold"], .nykiss-qb__opt[data-k="warm"]').forEach(btn => {
+    btn.addEventListener('click', async e => {
       e.stopPropagation();
-      if(current === key) return;
+      const key = btn.dataset.k as Heat;
+      if(key === current || seg.classList.contains('is-busy')) return;
       const prev = current;
       setErr(errEl, '');
-      lock(true);
-      paint(key); // optimistic: the ring and the pill answer at once
-      if(key === 'cold') heatMap.delete(peerKey); else heatMap.set(peerKey, key);
+      seg.classList.add('is-busy');
+      paint(key); // optimistic: the ring and the switch answer at once
+      heatMap.set(peerKey, key);
       applyAllRings();
       updateFabRing(m.telegram_id);
       try {
@@ -514,94 +671,85 @@ function buildHeatRow(m: OpenMammoth, current: Heat, errEl: HTMLElement): HTMLEl
         refreshHeat(); // folders
       } catch(err: any) {
         paint(prev); // roll back
-        if(prev === 'cold') heatMap.delete(peerKey); else heatMap.set(peerKey, prev);
+        heatMap.set(peerKey, prev);
         applyAllRings();
         updateFabRing(m.telegram_id);
         setErr(errEl, errText(err));
-      } finally { lock(false); }
+      } finally { seg.classList.remove('is-busy'); }
     });
-    row.append(b);
   });
-  return row;
 }
 
-// --- menu render ---
+function paintMine(m: OpenMammoth, b: any) {
+  const heat = (b.heat || 'cold') as Heat;
+  const sub = [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ') +
+    (b.taken_by_other ? ' · есть и у других' : '');
+  setMenu('mine', heat, menuHead() + menuWho(b.nickname || m.nickname, sub) +
+    `<div class="nykiss-qb__stats"><div class="nykiss-qb__stat"><div class="nykiss-qb__lbl">Занёс</div>` +
+    `<div class="nykiss-qb__val is-money">$${b.total_deposited || 0}</div></div>` +
+    `<div class="nykiss-qb__stat"><div class="nykiss-qb__lbl">Статус</div>` +
+    `<div class="nykiss-qb__val">${escapeHtml(plainLabel(b.status_label)) || '—'}</div></div></div>` +
+    `<div class="nykiss-qb__sec"><div class="nykiss-qb__lbl">Температура</div>${segHtml(heat)}</div>` +
+    (heat === 'hot'
+      ? `<div class="nykiss-qb__seal">${ic('hot')}<div><strong>Оплачено</strong><span>Ставится сам, когда приходит оплата.</span></div></div><div style="height:16px"></div>`
+      : `<div class="nykiss-qb__note">${HEAT_NOTES[heat]}</div>`) +
+    '<div class="nykiss-qb__err" style="display:none"></div>');
+  wireHeatSwitch(m, heat);
+}
+
+function paintNone(m: OpenMammoth) {
+  const sub = [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ');
+  // not in the CRM: only «Добавить» — the temperature appears once he is attached
+  setMenu('none', '', menuHead() + menuWho(m.nickname, sub) + statusRow('Статус', 'Не в CRM', 'var(--nq-muted)') +
+    '<div class="nykiss-qb__note">Добавь его на свой аккаунт. Температура появится сразу после.</div>' +
+    `<button class="nykiss-qb__cta" data-a="add">${ic('plus')}Добавить мамонта</button>` +
+    '<div class="nykiss-qb__err" style="display:none"></div>');
+  const add = menuEl.querySelector<HTMLButtonElement>('[data-a="add"]');
+  const errEl = menuEl.querySelector<HTMLElement>('.nykiss-qb__err');
+  add.addEventListener('click', e => { e.stopPropagation(); addMammoth(add, errEl); });
+}
+
+function paintForeign(m: OpenMammoth) {
+  const sub = [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ');
+  setMenu('foreign', '', menuHead() + menuWho(m.nickname, sub) + statusRow('Статус', 'Чужой мамонт', '#e6a1a1') +
+    `<div class="nykiss-qb__lock">${ic('lock')}<div>Привязан к другому воркеру. Добавить или менять температуру нельзя.</div></div>`);
+}
+
 // Only the newest call may touch the menu: it awaits the chat and the CRM, and a stale one would
-// append a second status block into the fresh menu.
+// paint over the fresh state.
 let renderSeq = 0;
 async function renderMenu() {
   const seq = ++renderSeq;
   const m = getKey() ? await getOpenMammoth() : null;
   if(seq !== renderSeq) return;
 
-  menuEl.textContent = '';
-  const title = document.createElement('div');
-  title.className = 'nykiss-qb__title';
-  title.textContent = 'NYKISS CRM';
-  menuEl.append(title);
-
   if(!getKey()) {
-    const hint = document.createElement('div');
-    hint.className = 'nykiss-qb__hint';
-    hint.textContent = 'Подключи CRM один раз — и добавляй мамонтов из чата на свой аккаунт.';
-    const connect = document.createElement('button');
-    connect.className = 'nykiss-qb__btn nykiss-qb__btn-primary';
-    connect.textContent = '🔗 Подключить CRM';
-    connect.addEventListener('click', (e) => { e.stopPropagation(); promptConnect(); });
-    menuEl.append(hint, connect);
+    setMenu('nokey', '', menuHead() +
+      '<div class="nykiss-qb__hint">Подключи CRM один раз, и мамонтов можно будет <b>добавлять прямо из чата</b> на свой аккаунт.</div>' +
+      `<button class="nykiss-qb__cta" data-a="connect">${ic('link')}Подключить CRM</button>`);
+    menuEl.querySelector('[data-a="connect"]').addEventListener('click', e => { e.stopPropagation(); promptConnect(); });
+    return;
+  }
+  if(!m) {
+    setMenu('none', '', menuHead() + '<div class="nykiss-qb__hint">Открой личный чат с мамонтом, чтобы добавить его в CRM.</div>');
     return;
   }
 
-  const err = document.createElement('div');
-  err.className = 'nykiss-qb__err';
-  err.style.display = 'none';
-
-  if(!m) {
-    const hint = document.createElement('div');
-    hint.className = 'nykiss-qb__hint';
-    hint.textContent = 'Открой личный чат с мамонтом, чтобы добавить его в CRM.';
-    menuEl.append(hint);
-  } else {
-    const status = document.createElement('div');
-    status.className = 'nykiss-qb__status';
-    status.innerHTML = '<span class="muted">Проверяю…</span>';
-    const slot = document.createElement('div');
-    menuEl.append(status, slot, err);
-
-    let b: any;
-    try {
-      b = await apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
-    } catch(e: any) {
-      if(seq !== renderSeq) return;
-      status.innerHTML = `<span class="muted">${e?.message === 'bad-key' ? 'Ключ слетел — подключись заново.' : 'CRM недоступна.'}</span>`;
-      return;
-    }
+  const sub = [m.username ? '@' + m.username : '', 'id ' + m.telegram_id].filter(Boolean).join(' · ');
+  setMenu('none', '', menuHead() + menuWho(m.nickname, sub) + statusRow('Статус', '…'));
+  let b: any;
+  try {
+    b = await apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
+  } catch(e: any) {
     if(seq !== renderSeq) return;
-
-    if(b?.mine) {
-      status.innerHTML = `<b>${escapeHtml(b.nickname || m.nickname)}</b> — твой${b.taken_by_other ? ' <span class="muted">(есть и у других)</span>' : ''}<br>` +
-        `${escapeHtml(b.status_label || '')} · занёс <b>$${(b.total_deposited || 0)}</b>`;
-      slot.append(buildHeatRow(m, (b.heat || 'cold') as Heat, err));
-    } else if(b?.taken_by_other) {
-      status.innerHTML = '<b class="muted">Чужой мамонт</b><br><span class="muted">Привязан у другого воркера</span>';
-    } else {
-      // not in the CRM: only «Добавить» — the temperature appears once he is attached
-      status.innerHTML = `<span class="muted">Не в CRM.</span> <b>${escapeHtml(m.nickname)}</b>`;
-      const add = document.createElement('button');
-      add.className = 'nykiss-qb__btn nykiss-qb__btn-primary';
-      add.textContent = '➕ Добавить мамонта';
-      add.addEventListener('click', (e) => { e.stopPropagation(); addMammoth(add, err); });
-      slot.append(add);
-    }
+    setMenu('none', '', menuHead() + menuWho(m.nickname, sub) +
+      `<div class="nykiss-qb__hint">${e?.message === 'bad-key' ? 'Ключ слетел — подключись заново.' : 'CRM недоступна.'}</div>`);
+    return;
   }
-
-  // disconnect at the bottom
-  const disc = document.createElement('button');
-  disc.className = 'nykiss-qb__btn nykiss-qb__btn-ghost';
-  disc.style.marginTop = '6px';
-  disc.textContent = 'Отключить CRM';
-  disc.addEventListener('click', (e) => { e.stopPropagation(); setKey(''); renderMenu(); refreshBadge(); });
-  menuEl.append(disc);
+  if(seq !== renderSeq) return;
+  if(b?.mine) paintMine(m, b);
+  else if(b?.taken_by_other) paintForeign(m);
+  else paintNone(m);
 }
 
 function escapeHtml(s: string): string {
@@ -609,8 +757,17 @@ function escapeHtml(s: string): string {
 }
 
 // --- chip (always-visible status above FAB) ---
-async function refreshBadge() {
+function setChip(kind: 'mine' | 'none' | 'foreign' | '', money = 0) {
   chipEl.className = 'nykiss-qb__chip';
+  if(!kind) { chipEl.innerHTML = ''; return; }
+  chipEl.innerHTML = kind === 'mine' ? ic('check') + `<span>твой · <b>$${money}</b></span>`
+    : kind === 'foreign' ? ic('lock') + '<span>чужой мамонт</span>'
+      : ic('plus') + '<span>не в CRM</span>';
+  chipEl.className = 'nykiss-qb__chip is-shown is-' + kind;
+}
+
+async function refreshBadge() {
+  setChip('');
   if(!getKey()) return;
   const m = await getOpenMammoth();
   if(!m) return;
@@ -618,17 +775,52 @@ async function refreshBadge() {
   try {
     const b = await apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
     if(currentPeerId !== forThis) return; // chat switched mid-request
-    if(b?.mine) {
-      chipEl.textContent = `✓ твой · $${b.total_deposited || 0}`;
-      chipEl.className = 'nykiss-qb__chip is-shown is-mine';
-    } else if(b?.taken_by_other) {
-      chipEl.textContent = '⚠ чужой мамонт';
-      chipEl.className = 'nykiss-qb__chip is-shown is-foreign';
-    } else {
-      chipEl.textContent = '+ не в CRM';
-      chipEl.className = 'nykiss-qb__chip is-shown';
-    }
+    if(b?.mine) setChip('mine', b.total_deposited || 0);
+    else if(b?.taken_by_other) setChip('foreign');
+    else setChip('none');
   } catch(e) { /* keep hidden on error */ }
+}
+
+// --- diagnostics: window.nykissDebug() prints what the account's folders and the CRM look like;
+// window.nykissRepair() deletes our folders and builds them again from the CRM ---
+async function nykissDebug() {
+  const fs = appImManager.managers.filtersStorage;
+  const [ui, srv]: any[][] = [await fs.getDialogFilters(false), await fs.getDialogFilters(true)];
+  const row = (f: any) => ({
+    id: f.id, kind: f._, title: f.title?.text, emoticon: f.emoticon, color: f.color,
+    flags: Object.keys(f.pFlags || {}).join(','), inc: f.includePeerIds?.length, pin: f.pinnedPeerIds?.length, exc: f.excludePeerIds?.length
+  });
+  const counts: Record<string, number> = {};
+  allHeat().forEach(h => { counts[h] = (counts[h] || 0) + 1; });
+  const {want, owned} = await computeFolderTargets();
+  const ours = srv.filter((f: any) => (Object.values(HEAT_FOLDER_TITLES) as string[]).includes(f.title?.text));
+  const seen = new Map<number, string[]>();
+  ours.forEach((f: any) => [...(f.pinnedPeerIds || []), ...(f.includePeerIds || [])].forEach((id: number) => {
+    seen.set(id, [...(seen.get(id) || []), f.title.text]);
+  }));
+  const inManyFolders = [...seen].filter(([, t]) => t.length > 1);
+  console.info('[nykiss] build', BUILD, '| key', !!getKey(), '| heat', counts, '| by @username only', heatByName.size);
+  console.info('[nykiss] folders as the app shows them'); console.table(ui.map(row));
+  console.info('[nykiss] folders on the server'); console.table(srv.map(row));
+  console.info('[nykiss] plan', planFolders(srv.filter((f: any) => f._ === 'dialogFilter' && f.id > 1).map((f: any) => ({
+    id: f.id, title: f.title?.text || '', includePeerIds: f.includePeerIds || [], pinnedPeerIds: f.pinnedPeerIds || [],
+    excludePeerIds: f.excludePeerIds || [], flags: Object.keys(f.pFlags || {}), hasColor: f.color != null
+  })), want, owned), '| chats in more than one of our folders:', inManyFolders);
+  return {build: BUILD, heat: counts, want, owned, inManyFolders};
+}
+
+async function nykissRepair() {
+  const fs = appImManager.managers.filtersStorage;
+  const titles: string[] = [...Object.values(HEAT_FOLDER_TITLES), ...LEGACY_HEAT_FOLDER_TITLES];
+  const run = async() => {
+    for(const f of await fs.getDialogFilters(true) as any[]) {
+      if(f._ === 'dialogFilter' && f.id > 1 && titles.includes(f.title?.text)) await fs.updateDialogFilter(f, true);
+    }
+  };
+  if(navigator.locks) await navigator.locks.request('nykiss-heat-folders-v3', run); else await run();
+  await refreshHeat();
+  await reconcileHeatFolders();
+  return nykissDebug();
 }
 
 // --- visibility / peer-change poll ---
@@ -637,12 +829,12 @@ function sync() {
   syncTick++;
   const visible = !!getActiveInput();
   rootEl.classList.toggle('is-visible', visible);
-  if(!visible) { closeMenu(); currentPeerId = null; chipEl.className = 'nykiss-qb__chip'; return; }
+  if(!visible) { closeMenu(); currentPeerId = null; setChip(''); return; }
 
   const peerId = (appImManager.chat?.peerId as any) ?? null;
   if(peerId !== currentPeerId) {
     currentPeerId = peerId;
-    chipEl.className = 'nykiss-qb__chip';
+    setChip('');
     if(rootEl.classList.contains('is-open')) renderMenu();
     refreshBadge();
     updateFabRing();
@@ -666,11 +858,15 @@ export function initQuickBubble() {
 
   menuEl = document.createElement('div');
   menuEl.className = 'nykiss-qb__menu';
+  menuEl.setAttribute('role', 'dialog');
+  menuEl.setAttribute('aria-label', 'NYKISS CRM');
 
   fabEl = document.createElement('button');
   fabEl.className = 'nykiss-qb__fab';
-  fabEl.textContent = 'N';
-  fabEl.title = 'NYKISS CRM';
+  fabEl.setAttribute('aria-label', 'NYKISS CRM');
+  fabEl.setAttribute('aria-expanded', 'false');
+  fabEl.innerHTML = '<span class="nykiss-qb__fab-n">N</span>' +
+    `<span class="nykiss-qb__badge" aria-hidden="true">${ic('cold', 'i-cold')}${ic('warm', 'i-warm')}${ic('hot', 'i-hot')}</span>`;
   fabEl.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
 
   rootEl.append(chipEl, menuEl, fabEl);
@@ -678,6 +874,10 @@ export function initQuickBubble() {
 
   document.addEventListener('click', (e) => { if(!rootEl.contains(e.target as Node)) closeMenu(); });
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeMenu(); });
+
+  (window as any).nykissDebug = nykissDebug;
+  (window as any).nykissRepair = nykissRepair;
+  console.info('[nykiss] build', BUILD);
 
   sync();
   watchAvatars();

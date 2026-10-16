@@ -4,7 +4,8 @@ import FolderTitleTsx from '@components/folderTitleTsx';
 import {FOLDER_ID_ALL} from '@lib/appManagers/constants';
 import {i18n} from '@lib/langPack';
 import useFolders from '@stores/folders';
-import {For} from 'solid-js';
+import {createEffect, For} from 'solid-js';
+import {HEAT_FOLDER_TITLES} from '@lib/nykiss/heatFolders';
 
 export default function FoldersTabs(props: {
   scrollableProps?: Partial<Parameters<typeof Tabs.MenuScrollable>[0]>,
@@ -24,7 +25,16 @@ export default function FoldersTabs(props: {
 
     return (
       <Tabs.MenuTab
-        ref={(ref) => ref.dataset.filterId = '' + item.filter.id}
+        ref={(ref) => {
+          ref.dataset.filterId = '' + item.filter.id;
+          // NYKISS: the temperature folders get their own accent (see _nykissFolders.scss)
+          createEffect(() => {
+            const text = (item.filter as {title?: {text?: string}}).title?.text;
+            const heat = text === HEAT_FOLDER_TITLES.warm ? 'warm' : text === HEAT_FOLDER_TITLES.hot ? 'hot' : '';
+            if(heat) ref.dataset.heat = heat;
+            else delete ref.dataset.heat;
+          });
+        }}
       >
         <span class="text-super" dir="auto">
           {title()}

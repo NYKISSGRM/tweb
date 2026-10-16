@@ -1,0 +1,83 @@
+@use "../shared" as *;
+
+// NYKISS: the folder strip above the chat list — flat, the active tab is told by its accent colour instead of a pill.
+// The temperature folders («Тёплые» / «Горячие») carry data-heat (set in foldersTabs.tsx) for their accent.
+.folders-tabs-scrollable {
+  margin: 0;
+  border-radius: 0;
+  // the hairline is a shadow, not a border: a border would shorten the plate and clip the underline
+  box-shadow: 0 1px 0 #241f12;
+  background-color: var(--surface-color, #15140d);
+}
+
+#folders-tabs {
+  justify-content: flex-start;
+  padding-inline: .5rem;
+  background: transparent;
+
+  .menu-horizontal-div-item {
+    --nk-accent: var(--primary-color, #C9A227);
+    flex: 0 0 auto;
+    min-width: 0;
+    margin: 0;
+    padding-inline: .875rem;
+    border-radius: 0;
+    font-size: .875rem;
+    letter-spacing: .01em;
+    color: #9a927d;
+    background: transparent;
+
+    @include animation-level(1) {
+      transition: color .2s ease-in-out;
+    }
+
+    &[data-heat="warm"] {
+      --nk-accent: #e8a23a;
+    }
+
+    &[data-heat="hot"] {
+      --nk-accent: #e5532d;
+    }
+
+    // a small dot marks the temperature folders
+    &[data-heat] .menu-horizontal-div-item-span::before {
+      content: "";
+      display: inline-block;
+      width: .375rem;
+      height: .375rem;
+      margin-inline-end: .375rem;
+      border-radius: 50%;
+      background: var(--nk-accent);
+      vertical-align: middle;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        background: transparent;
+        color: #F3EEDF;
+      }
+    }
+
+    &.active {
+      color: var(--nk-accent);
+    }
+
+    // the pill becomes a line; horizontalMenu.ts still slides it
+    .menu-horizontal-div-item-background {
+      inset-block: auto 0;
+      height: 2px;
+      border-radius: 2px 2px 0 0;
+      background-color: var(--nk-accent);
+    }
+
+    .badge:not(.badge-gray) {
+      background-color: rgba(201, 162, 39, .14);
+      color: var(--nk-accent);
+    }
+
+    &.active .badge:not(.badge-gray) {
+      background-color: var(--nk-accent);
+      color: #070807;
+    }
+  }
+}
