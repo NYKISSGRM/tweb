@@ -47,6 +47,9 @@ function updateFabRing(telegramId?: number | null) {
 }
 
 let ringObserver: MutationObserver | null = null;
+const FILTER_KEY = 'nykiss_heat_filter';
+let filterInited = false;
+let filterChipEl: HTMLElement | null = null;
 
 function watchDialogList() {
   if(ringObserver) return;
@@ -55,6 +58,60 @@ function watchDialogList() {
   ringObserver = new MutationObserver(() => applyAllRings());
   ringObserver.observe(target, {childList: true, subtree: true});
   applyAllRings();
+}
+
+// ---- CRM Header Strip --------------------------------------------------------
+
+function refreshHeaderStrip(data: any | null) {
+  const bottom = document.querySelector<HTMLElement>('.person > .content > .bottom');
+  if(!bottom) return;
+  let strip = bottom.querySelector<HTMLElement>('.nykiss-crm-strip');
+  if(!data?.mine) {
+    if(strip) strip.style.display = 'none';
+    return;
+  }
+  if(!strip) {
+    strip = document.createElement('div');
+    strip.className = 'nykiss-crm-strip';
+    bottom.appendChild(strip);
+  }
+  strip.style.display = '';
+  const heatStatus = currentPeerId ? (localStorage.getItem(HEAT_KEY(currentPeerId)) ?? 'none') : 'none';
+  const heatEmoji = heatStatus === 'hot' ? '💰' : heatStatus === 'warm' ? '🔥' : heatStatus === 'cold' ? '🧊' : '';
+  const stage = data.status_label || '';
+  const deps = `$${data.total_deposited || 0}`;
+  const parts = [heatEmoji, stage, deps].filter(Boolean);
+  strip.textContent = parts.join(' · ');
+  strip.dataset.heat = heatStatus;
+}
+
+// ---- Hot Filter Chip ---------------------------------------------------------
+
+function isFilterOn(): boolean {
+  return localStorage.getItem(FILTER_KEY) === '1';
+}
+
+function buildHotFilterChip(overlay: HTMLElement) {
+  if(overlay.querySelector('.nykiss-heat-chip-row')) return;
+  filterChipEl = document.createElement('div');
+  filterChipEl.className = 'nykiss-heat-chip' + (isFilterOn() ? ' is-active' : '');
+  filterChipEl.textContent = '🔥 Горячие';
+  filterChipEl.title = 'Показать только горячих клиентов';
+  filterChipEl.addEventListener('click', () => {
+    const next = !isFilterOn();
+    localStorage.setItem(FILTER_KEY, next ? '1' : '0');
+    const container = document.getElementById('chatlist-container');
+    if(container) container.dataset.heatFilter = next ? 'on' : '';
+    filterChipEl?.classList.toggle('is-active', next);
+  });
+  const row = document.createElement('div');
+  row.className = 'nykiss-heat-chip-row';
+  row.append(filterChipEl);
+  overlay.append(row);
+  if(isFilterOn()) {
+    const container = document.getElementById('chatlist-container');
+    if(container) container.dataset.heatFilter = 'on';
+  }
 }
 
 // ---- key storage -------------------------------------------------------------
@@ -164,6 +221,24 @@ function injectStyle() {
 .nykiss-qb__btn-ghost:hover { background: rgba(201,162,39,.12); }
 .nykiss-qb__btn:disabled { opacity: .45; cursor: default; }
 .nykiss-qb__hint { font-size: 12px; opacity: .55; padding: 6px; line-height: 1.4; }
+
+/* CRM Header Strip — shown under chat name in topbar */
+.nykiss-crm-strip { font-size: 11px; opacity: .65; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; line-height: 1.3; padding-top: 2px; max-width: 220px;
+  transition: opacity .2s; }
+.nykiss-crm-strip[data-heat="hot"]  { color: #E05A20; opacity: .85; }
+.nykiss-crm-strip[data-heat="warm"] { color: #C9A227; opacity: .85; }
+.nykiss-crm-strip[data-heat="cold"] { color: #6ab0e0; opacity: .75; }
+
+/* Hot Filter Chip — above chat list */
+.nykiss-heat-chip-row { display: flex; padding: 4px 8px; gap: 6px; flex-shrink: 0; }
+.nykiss-heat-chip { display: inline-flex; align-items: center; padding: 3px 10px;
+  border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: rgba(255,255,255,.06); color: var(--secondary-text-color, rgba(255,255,255,.6));
+  border: 1px solid rgba(255,255,255,.1); transition: all .15s; user-select: none; white-space: nowrap; }
+.nykiss-heat-chip:hover { background: rgba(201,162,39,.15); border-color: rgba(201,162,39,.35); color: #C9A227; }
+.nykiss-heat-chip.is-active { background: rgba(201,162,39,.22); border-color: rgba(201,162,39,.6); color: #C9A227; }
+#chatlist-container[data-heat-filter="on"] .chatlist-chat:not(:has(.dialog-avatar[data-heat])) { display: none !important; }
 `;
   document.head.appendChild(style);
 }
@@ -343,6 +418,7 @@ async function refreshBadge() {
       chipEl.textContent = '+ не в CRM';
       chipEl.className = 'nykiss-qb__chip is-shown';
     }
+    refreshHeaderStrip(b);
   } catch(e) { /* keep hidden on error */ }
 }
 
@@ -356,9 +432,15 @@ function sync() {
   if(peerId !== currentPeerId) {
     currentPeerId = peerId;
     chipEl.className = 'nykiss-qb__chip';
+    refreshHeaderStrip(null);
     if(rootEl.classList.contains('is-open')) renderMenu();
     refreshBadge();
     updateFabRing();
+  }
+
+  if(!filterInited) {
+    const overlay = document.querySelector<HTMLElement>('.chatlist-overlay');
+    if(overlay) { filterInited = true; buildHotFilterChip(overlay); }
   }
 }
 
