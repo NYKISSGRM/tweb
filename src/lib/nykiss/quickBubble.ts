@@ -828,7 +828,7 @@ function paintTeammate(m: OpenMammoth, t: any) {
   setMenu('team', '', menuHead() + menuWho(String(t?.display_name || m.nickname), subtitle(m)) +
     statusRow('Кто', 'Воркер команды') + statusRow('Ранг', escapeHtml(t?.rank_name || '—')) +
     statusRow('Профитов', String(Math.max(0, Math.floor(Number(t?.profits_count) || 0)))) +
-    `<div class="nykiss-qb__note">${ic('team')} Это свой, не мамонт: в CRM его добавлять не нужно.</div>`);
+    '<div class="nykiss-qb__note">Это свой, не мамонт: в CRM его добавлять не нужно.</div>');
 }
 
 function paintForeign(m: OpenMammoth) {
