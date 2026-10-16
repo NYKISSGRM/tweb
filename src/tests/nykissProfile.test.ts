@@ -1,4 +1,4 @@
-import {achPct, daysWord, earningsRows, fmtMoney, fmtMskDay, fmtMskTime, mskDayKey, sparkPoints} from '@lib/nykiss/profileModel';
+import {daysWord, earningsRows, fmtMoney, mskDayKey} from '@lib/nykiss/profileModel';
 
 describe('nykiss profile model', () => {
   test('fmtMoney: whole dollars have no cents, fractions have two digits', () => {
@@ -8,39 +8,6 @@ describe('nykiss profile model', () => {
     expect(fmtMoney(1234)).toBe('$1 234');
     expect(fmtMoney(0)).toBe('$0');
     expect(fmtMoney(NaN as any)).toBe('$0');
-  });
-
-  test('fmtMskTime: uses Moscow time, treats a zone-less ISO string as UTC', () => {
-    // 21:30 UTC = 00:30 MSK next day
-    expect(fmtMskTime('2026-10-14T21:30:00Z')).toMatch(/15 окт.*00:30/);
-    expect(fmtMskTime('2026-10-14T21:30:00')).toMatch(/15 окт.*00:30/);
-    expect(fmtMskTime('2026-10-14T21:30:00+00:00')).toMatch(/15 окт.*00:30/);
-    expect(fmtMskTime(null)).toBe('');
-    expect(fmtMskTime('not a date')).toBe('');
-  });
-
-  test('fmtMskDay: a plain date is not shifted by the time zone', () => {
-    expect(fmtMskDay('2026-10-09')).toBe('9 октября');
-    expect(fmtMskDay('2026-01-01')).toBe('1 января');
-    expect(fmtMskDay('2026-10-09T10:00:00Z')).toBe('');
-    expect(fmtMskDay(undefined)).toBe('');
-  });
-
-  test('achPct clamps and survives a missing target', () => {
-    expect(achPct(640, 1000)).toBe(64);
-    expect(achPct(5, 5)).toBe(100);
-    expect(achPct(9, 5)).toBe(100);
-    expect(achPct(-3, 5)).toBe(0);
-    expect(achPct(3, 0)).toBe(0);
-    expect(achPct(3, null)).toBe(0);
-  });
-
-  test('sparkPoints: flat line at the bottom for zeros, peak at the top, evenly spaced', () => {
-    expect(sparkPoints([], 100, 50)).toBe('');
-    expect(sparkPoints([0, 0, 0], 100, 50)).toBe('3.0,47.0 50.0,47.0 97.0,47.0');
-    const pts = sparkPoints([0, 10], 100, 50).split(' ');
-    expect(pts[0]).toBe('3.0,47.0');
-    expect(pts[1]).toBe('97.0,3.0');
   });
 
   test('daysWord declines correctly', () => {

@@ -7,8 +7,6 @@
 // пока воркер не подключит новый; сеть/5xx/429 — пауза растёт вдвое; вкладка скрыта — не опрашиваем.
 
 import rootScope from '@lib/rootScope';
-import contextMenuController from '@helpers/contextMenuController';
-import {getOverlayRoot, onAppWindowChange} from '@helpers/appWindow';
 import {toast} from '@components/toast';
 import {API, getKey, setKey} from '@lib/nykiss/quickBubble';
 import {TeamMember, buildIndex, memberTitle, pollDelay} from '@lib/nykiss/teamModel';
@@ -19,22 +17,16 @@ const AVATAR_SEL = '.avatar[data-peer-id]';
 const STYLE_ID = 'nykiss-team-style';
 
 let index = new Map<string, TeamMember>();
-let me: TeamMember | null = null;
-let members: TeamMember[] = [];
 let started = false;
 let pending = new Set<HTMLElement>();
 let frame = 0;
 let fullScan = true;
 
-export function getTeamMembers(): TeamMember[] { return members; }
-export function getMe(): TeamMember | null { return me; }
-
 type Reply = {status: 'ok' | 'auth' | 'retry', data?: any, wait?: number};
 
-/** Gram открыт не под тем Telegram-аккаунтом, что привязан в CRM (читает оверлей профиля). */
+/** Gram открыт не под тем Telegram-аккаунтом, что привязан в CRM: кэш профиля сбрасывается по этому событию. */
 export const IDENTITY_EVENT = 'nykiss:identity';
 let mismatch = false;
-export function isIdentityMismatch(): boolean { return mismatch; }
 
 let warnedMem = 0;      // запасной вариант, если localStorage недоступен
 let blockedUntil = 0;   // 429 от сервера: до этого момента не шлём вообще ничего (лимит общий на IP)
@@ -110,8 +102,6 @@ function checkIdentity(id: number, data: any) {
 
 function apply(data: any) {
   index = buildIndex(data.items);
-  members = (Array.isArray(data.items) ? data.items : []) as TeamMember[];
-  me = members.find(m => m && m.me) || null;
   fullScan = true;
   schedule();
 }
@@ -233,51 +223,11 @@ function injectStyle() {
   document.head.appendChild(st);
 }
 
-// ---- пункт «Профиль NYKISS» в левом меню --------------------------------------------------------------
-// Меню строится заново при каждом открытии и кладётся в корень оверлеев (getOverlayRoot), поэтому следим
-// только за его прямыми детьми (без subtree) и берём лишь добавленные узлы .btn-menu.
-
-function injectMenuItem(menu: HTMLElement) {
-  if(menu.querySelector('[data-nk-profile-item]')) return;
-  const items = Array.from(menu.querySelectorAll<HTMLElement>('.btn-menu-item'));
-  const base = items.find(i => (i.textContent || '').trim() === 'NYKISS');
-  if(!base) return;
-  const item = base.cloneNode(true) as HTMLElement;
-  item.setAttribute('data-nk-profile-item', '1');
-  const label = item.querySelector<HTMLElement>('.btn-menu-item-text') || item;
-  label.textContent = 'Профиль NYKISS';
-  item.addEventListener('click', () => {
-    contextMenuController.close();
-    import('@lib/nykiss/profile').then(({openMyProfile}) => openMyProfile());
-  }, true);
-  base.after(item);
-}
-
-let menuObserver: MutationObserver | null = null;
-
-function watchMenu() {
-  const attach = () => {
-    menuObserver?.disconnect();
-    const root = getOverlayRoot();   // сюда tweb монтирует меню: body активного окна (при Document PiP — другого)
-    menuObserver = new MutationObserver(records => {
-      for(const r of records) {
-        r.addedNodes.forEach(n => {
-          if(n.nodeType === 1 && (n as HTMLElement).classList.contains('btn-menu')) injectMenuItem(n as HTMLElement);
-        });
-      }
-    });
-    menuObserver.observe(root, {childList: true});
-  };
-  attach();
-  onAppWindowChange(attach);
-}
-
 export function initTeam() {
   if(started) return;
   started = true;
   injectStyle();
   watch();
-  watchMenu();
   plan(0);
   // вернулись на вкладку: опрашиваем не раньше, чем положено (пауза после ошибок и 429 соблюдается)
   document.addEventListener('visibilitychange', () => { if(!document.hidden) plan(Math.max(0, nextAt - Date.now())); });
