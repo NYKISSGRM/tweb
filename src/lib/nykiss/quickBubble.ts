@@ -442,6 +442,7 @@ const SPRITE = `<svg id="nykiss-qb-sprite" width="0" height="0" style="position:
 <symbol id="ic-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 <symbol id="ic-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></symbol>
 <symbol id="ic-lock" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9.5" rx="1.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+<symbol id="ic-team" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.2"/><path d="M3.5 19c.5-3.4 2.7-5 5.5-5s5 1.6 5.5 5"/><circle cx="17" cy="9.8" r="2.4"/><path d="M16 14.2c2.6-.2 4.1 1.2 4.5 4"/></symbol>
 <symbol id="ic-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
 </svg>`;
 
@@ -513,6 +514,8 @@ function injectStyle() {
 .nykiss-qb__chip.is-none svg{color:var(--nq-gold)}
 .nykiss-qb__chip.is-foreign{color:#e6b3b6;box-shadow:0 6px 16px rgba(0,0,0,.5),inset 0 0 0 1px rgba(192,82,91,.5)}
 .nykiss-qb__chip.is-foreign svg{color:var(--nq-red)}
+.nykiss-qb__chip.is-team{color:var(--nq-text)}
+.nykiss-qb__chip.is-team svg{color:var(--nq-gold)}
 .nykiss-qb.is-open .nykiss-qb__chip{display:none}
 @keyframes nq-chip{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
@@ -820,6 +823,14 @@ function paintNone(m: OpenMammoth) {
   add.addEventListener('click', e => { e.stopPropagation(); addMammoth(add, errEl); });
 }
 
+// The other person is a worker of the team, not a мамонт: only what the rating shows everybody anyway.
+function paintTeammate(m: OpenMammoth, t: any) {
+  setMenu('team', '', menuHead() + menuWho(String(t?.display_name || m.nickname), subtitle(m)) +
+    statusRow('Кто', 'Воркер команды') + statusRow('Ранг', escapeHtml(t?.rank_name || '—')) +
+    statusRow('Профитов', String(Math.max(0, Math.floor(Number(t?.profits_count) || 0)))) +
+    `<div class="nykiss-qb__note">${ic('team')} Это свой, не мамонт: в CRM его добавлять не нужно.</div>`);
+}
+
 function paintForeign(m: OpenMammoth) {
   setMenu('foreign', '', menuHead() + menuWho(m.nickname, subtitle(m)) + statusRow('Статус', 'Чужой мамонт', '#e6a1a1') +
     `<div class="nykiss-qb__lock">${ic('lock')}<div>Привязан к другому воркеру. Добавить или менять температуру нельзя.</div></div>`);
@@ -857,6 +868,7 @@ async function renderMenu() {
   }
   if(seq !== renderSeq) return;
   if(b?.mine) paintMine(m, b);
+  else if(b?.teammate) paintTeammate(m, b.teammate);
   else if(b?.taken_by_other) paintForeign(m);
   else paintNone(m);
 }
@@ -879,10 +891,11 @@ const lookup = (m: OpenMammoth) =>
   apiFetch(`/messenger/lookup?telegram_id=${m.telegram_id}&username=${encodeURIComponent(m.username || '')}`);
 
 // --- chip (always-visible status above FAB) ---
-function setChip(kind: 'mine' | 'none' | 'foreign' | '', amount: unknown = 0) {
+function setChip(kind: 'mine' | 'none' | 'foreign' | 'team' | '', amount: unknown = 0) {
   chipEl.className = 'nykiss-qb__chip';
   if(!kind) { chipEl.innerHTML = ''; return; }
   chipEl.innerHTML = kind === 'mine' ? ic('check') + `<span>твой · <b>$${money(amount)}</b></span>`
+    : kind === 'team' ? ic('team') + `<span>воркер · ${escapeHtml(amount || 'команда')}</span>`
     : kind === 'foreign' ? ic('lock') + '<span>чужой мамонт</span>'
       : ic('plus') + '<span>не в CRM</span>';
   chipEl.className = 'nykiss-qb__chip is-shown is-' + kind;
@@ -898,6 +911,7 @@ async function refreshBadge() {
     const b = await lookup(m);
     if(currentPeerId !== forThis) return; // chat switched mid-request
     if(b?.mine) setChip('mine', b.total_deposited);
+    else if(b?.teammate) setChip('team', b.teammate.rank_name);
     else if(b?.taken_by_other) setChip('foreign');
     else setChip('none');
   } catch(e) { /* keep hidden on error */ }
