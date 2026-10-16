@@ -87,42 +87,76 @@ function refreshHeaderStrip(data: any | null) {
   strip.dataset.heat = heatStatus;
 }
 
-// ---- Hot Filter Chip ---------------------------------------------------------
+// ---- Hot Filter Chips (3-way: cold / warm / hot) -----------------------------
 
-function isFilterOn(): boolean {
-  return localStorage.getItem(FILTER_KEY) === '1';
+const HEAT_FILTERS = [
+  {key: 'cold', emoji: '🧊', label: 'Холодные'},
+  {key: 'warm', emoji: '🔥', label: 'Тёплые'},
+  {key: 'hot',  emoji: '💰', label: 'Горячие'},
+] as const;
+
+type HeatLevel = typeof HEAT_FILTERS[number]['key'];
+let chipBtns: HTMLButtonElement[] = [];
+
+function getActiveFilter(): HeatLevel | '' {
+  return (localStorage.getItem(FILTER_KEY) as HeatLevel) || '';
 }
 
-function updateHeatChipCount() {
-  if(!filterChipEl) return;
-  const count = document.querySelectorAll('.dialog-avatar[data-heat]').length;
-  filterChipEl.textContent = count > 0 ? `🔥 Горячие · ${count}` : '🔥 Горячие';
+function setActiveFilter(key: HeatLevel | '') {
+  if(key) localStorage.setItem(FILTER_KEY, key);
+  else localStorage.removeItem(FILTER_KEY);
+  const container = document.getElementById('chatlist-container');
+  if(container) container.dataset.heatFilter = key;
+  if(key) scrollChatlistToTop();
+  updateHeatChipBtns();
+}
+
+function scrollChatlistToTop() {
+  const el = document.querySelector<HTMLElement>('.chatlist')
+    || document.querySelector<HTMLElement>('.folders-scrollable');
+  if(el) el.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function updateHeatChipBtns() {
+  if(!chipBtns.length) return;
+  const active = getActiveFilter();
+  HEAT_FILTERS.forEach((f, i) => {
+    const btn = chipBtns[i];
+    if(!btn) return;
+    const count = document.querySelectorAll(`.dialog-avatar[data-heat="${f.key}"]`).length;
+    btn.textContent = count > 0 ? `${f.emoji} ${f.label} ${count}` : `${f.emoji} ${f.label}`;
+    btn.classList.toggle('is-active', active === f.key);
+    btn.style.opacity = (count === 0 && active !== f.key) ? '0.4' : '';
+  });
 }
 
 function buildHotFilterChip(overlay: HTMLElement) {
   if(overlay.querySelector('.nykiss-heat-chip-row')) return;
-  filterChipEl = document.createElement('div');
-  filterChipEl.className = 'nykiss-heat-chip' + (isFilterOn() ? ' is-active' : '');
-  filterChipEl.textContent = '🔥 Горячие';
-  filterChipEl.title = 'Показать только горячих клиентов';
-  filterChipEl.addEventListener('click', () => {
-    applyAllRings(); // ensure data-heat attrs fresh before filtering
-    const next = !isFilterOn();
-    localStorage.setItem(FILTER_KEY, next ? '1' : '0');
-    const container = document.getElementById('chatlist-container');
-    if(container) container.dataset.heatFilter = next ? 'on' : '';
-    filterChipEl?.classList.toggle('is-active', next);
-    updateHeatChipCount();
-  });
   const row = document.createElement('div');
   row.className = 'nykiss-heat-chip-row';
-  row.append(filterChipEl);
+
+  chipBtns = HEAT_FILTERS.map(f => {
+    const btn = document.createElement('button');
+    btn.className = 'nykiss-heat-chip';
+    btn.dataset.filterKey = f.key;
+    btn.type = 'button';
+    btn.addEventListener('click', () => {
+      applyAllRings();
+      setActiveFilter(getActiveFilter() === f.key ? '' : f.key as HeatLevel);
+    });
+    row.append(btn);
+    return btn;
+  });
+
   overlay.append(row);
-  if(isFilterOn()) {
+  applyAllRings();
+  updateHeatChipBtns();
+
+  const saved = getActiveFilter();
+  if(saved) {
     const container = document.getElementById('chatlist-container');
-    if(container) container.dataset.heatFilter = 'on';
+    if(container) container.dataset.heatFilter = saved;
   }
-  updateHeatChipCount();
 }
 
 // ---- key storage -------------------------------------------------------------
@@ -242,16 +276,20 @@ function injectStyle() {
 .nykiss-crm-strip[data-heat="cold"] { color: #5ba8d4; opacity: .9; }
 .nykiss-crm-strip[data-heat="none"], .nykiss-crm-strip:not([data-heat]) { color: var(--secondary-text-color, rgba(255,255,255,.55)); }
 
-/* Hot Filter Chip — above chat list */
+/* Hot Filter Chips — 3 in a row */
 .nykiss-heat-chip-row { display: flex; padding: 6px 10px 4px; gap: 6px; flex-shrink: 0; }
-.nykiss-heat-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px;
-  border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer;
+.nykiss-heat-chip { display: inline-flex; align-items: center; padding: 4px 11px;
+  border-radius: 20px; font-size: 12.5px; font-weight: 600; cursor: pointer;
   background: rgba(255,255,255,.07); color: var(--secondary-text-color, rgba(255,255,255,.55));
-  border: 1.5px solid rgba(255,255,255,.12); transition: all .18s; user-select: none; white-space: nowrap; }
-.nykiss-heat-chip:hover { background: rgba(201,162,39,.18); border-color: rgba(201,162,39,.4); color: #D4A827; }
-.nykiss-heat-chip.is-active { background: rgba(201,162,39,.25); border-color: #C9A227; color: #D4A827;
-  box-shadow: 0 0 8px rgba(201,162,39,.25); }
-#chatlist-container[data-heat-filter="on"] .chatlist-chat:not(:has(.dialog-avatar[data-heat])) { display: none !important; }
+  border: 1.5px solid rgba(255,255,255,.12); transition: all .18s; user-select: none; white-space: nowrap;
+  flex: 1; justify-content: center; min-width: 0; }
+.nykiss-heat-chip:hover { opacity: .85; }
+.nykiss-heat-chip[data-filter-key="cold"].is-active { background: rgba(42,107,154,.25); border-color: #2A6B9A; color: #5ba8d4; box-shadow: 0 0 8px rgba(42,107,154,.3); }
+.nykiss-heat-chip[data-filter-key="warm"].is-active { background: rgba(201,162,39,.25); border-color: #C9A227; color: #D4A827; box-shadow: 0 0 8px rgba(201,162,39,.3); }
+.nykiss-heat-chip[data-filter-key="hot"].is-active  { background: rgba(224,90,32,.25);  border-color: #E05A20; color: #FF6B30; box-shadow: 0 0 8px rgba(224,90,32,.3); }
+#chatlist-container[data-heat-filter="cold"] .chatlist-chat:not(:has(.dialog-avatar[data-heat="cold"])) { display: none !important; }
+#chatlist-container[data-heat-filter="warm"] .chatlist-chat:not(:has(.dialog-avatar[data-heat="warm"])) { display: none !important; }
+#chatlist-container[data-heat-filter="hot"]  .chatlist-chat:not(:has(.dialog-avatar[data-heat="hot"]))  { display: none !important; }
 `;
   document.head.appendChild(style);
 }
@@ -456,7 +494,7 @@ function sync() {
   // Re-apply rings every ~3s to catch chats that were already in DOM
   if(syncTick % 5 === 0) {
     applyAllRings();
-    updateHeatChipCount();
+    updateHeatChipBtns();
   }
 
   if(!filterInited) {
