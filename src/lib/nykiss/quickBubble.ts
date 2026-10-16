@@ -77,10 +77,12 @@ function refreshHeaderStrip(data: any | null) {
   }
   strip.style.display = '';
   const heatStatus = currentPeerId ? (localStorage.getItem(HEAT_KEY(currentPeerId)) ?? 'none') : 'none';
-  const heatEmoji = heatStatus === 'hot' ? '💰' : heatStatus === 'warm' ? '🔥' : heatStatus === 'cold' ? '🧊' : '';
-  const stage = data.status_label || '';
-  const deps = `$${data.total_deposited || 0}`;
-  const parts = [heatEmoji, stage, deps].filter(Boolean);
+  // Stage: strip leading emoji from API label to avoid duplication
+  const stageFull = (data.status_label || '').trim();
+  const stage = stageFull.replace(/^[ -￿\uD800-\uDFFF]+\s*/u, '') || stageFull || '—';
+  const deps = data.total_deposited > 0 ? `$${data.total_deposited}` : null;
+  const heatLabel: Record<string, string> = {hot: '💰 Горячий', warm: '🔥 Тёплый', cold: '🧊 Холодный'};
+  const parts = [heatStatus !== 'none' ? heatLabel[heatStatus] : null, stage, deps].filter(Boolean);
   strip.textContent = parts.join(' · ');
   strip.dataset.heat = heatStatus;
 }
@@ -91,6 +93,12 @@ function isFilterOn(): boolean {
   return localStorage.getItem(FILTER_KEY) === '1';
 }
 
+function updateHeatChipCount() {
+  if(!filterChipEl) return;
+  const count = document.querySelectorAll('.dialog-avatar[data-heat]').length;
+  filterChipEl.textContent = count > 0 ? `🔥 Горячие · ${count}` : '🔥 Горячие';
+}
+
 function buildHotFilterChip(overlay: HTMLElement) {
   if(overlay.querySelector('.nykiss-heat-chip-row')) return;
   filterChipEl = document.createElement('div');
@@ -98,11 +106,13 @@ function buildHotFilterChip(overlay: HTMLElement) {
   filterChipEl.textContent = '🔥 Горячие';
   filterChipEl.title = 'Показать только горячих клиентов';
   filterChipEl.addEventListener('click', () => {
+    applyAllRings(); // ensure data-heat attrs fresh before filtering
     const next = !isFilterOn();
     localStorage.setItem(FILTER_KEY, next ? '1' : '0');
     const container = document.getElementById('chatlist-container');
     if(container) container.dataset.heatFilter = next ? 'on' : '';
     filterChipEl?.classList.toggle('is-active', next);
+    updateHeatChipCount();
   });
   const row = document.createElement('div');
   row.className = 'nykiss-heat-chip-row';
@@ -112,6 +122,7 @@ function buildHotFilterChip(overlay: HTMLElement) {
     const container = document.getElementById('chatlist-container');
     if(container) container.dataset.heatFilter = 'on';
   }
+  updateHeatChipCount();
 }
 
 // ---- key storage -------------------------------------------------------------
@@ -223,21 +234,23 @@ function injectStyle() {
 .nykiss-qb__hint { font-size: 12px; opacity: .55; padding: 6px; line-height: 1.4; }
 
 /* CRM Header Strip — shown under chat name in topbar */
-.nykiss-crm-strip { font-size: 11px; opacity: .65; white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; line-height: 1.3; padding-top: 2px; max-width: 220px;
-  transition: opacity .2s; }
-.nykiss-crm-strip[data-heat="hot"]  { color: #E05A20; opacity: .85; }
-.nykiss-crm-strip[data-heat="warm"] { color: #C9A227; opacity: .85; }
-.nykiss-crm-strip[data-heat="cold"] { color: #6ab0e0; opacity: .75; }
+.nykiss-crm-strip { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; line-height: 1.4; padding-top: 3px; max-width: 280px;
+  opacity: .8; transition: color .2s; }
+.nykiss-crm-strip[data-heat="hot"]  { color: #FF6B30; opacity: 1; }
+.nykiss-crm-strip[data-heat="warm"] { color: #D4A827; opacity: 1; }
+.nykiss-crm-strip[data-heat="cold"] { color: #5ba8d4; opacity: .9; }
+.nykiss-crm-strip[data-heat="none"], .nykiss-crm-strip:not([data-heat]) { color: var(--secondary-text-color, rgba(255,255,255,.55)); }
 
 /* Hot Filter Chip — above chat list */
-.nykiss-heat-chip-row { display: flex; padding: 4px 8px; gap: 6px; flex-shrink: 0; }
-.nykiss-heat-chip { display: inline-flex; align-items: center; padding: 3px 10px;
-  border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer;
-  background: rgba(255,255,255,.06); color: var(--secondary-text-color, rgba(255,255,255,.6));
-  border: 1px solid rgba(255,255,255,.1); transition: all .15s; user-select: none; white-space: nowrap; }
-.nykiss-heat-chip:hover { background: rgba(201,162,39,.15); border-color: rgba(201,162,39,.35); color: #C9A227; }
-.nykiss-heat-chip.is-active { background: rgba(201,162,39,.22); border-color: rgba(201,162,39,.6); color: #C9A227; }
+.nykiss-heat-chip-row { display: flex; padding: 6px 10px 4px; gap: 6px; flex-shrink: 0; }
+.nykiss-heat-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px;
+  border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: rgba(255,255,255,.07); color: var(--secondary-text-color, rgba(255,255,255,.55));
+  border: 1.5px solid rgba(255,255,255,.12); transition: all .18s; user-select: none; white-space: nowrap; }
+.nykiss-heat-chip:hover { background: rgba(201,162,39,.18); border-color: rgba(201,162,39,.4); color: #D4A827; }
+.nykiss-heat-chip.is-active { background: rgba(201,162,39,.25); border-color: #C9A227; color: #D4A827;
+  box-shadow: 0 0 8px rgba(201,162,39,.25); }
 #chatlist-container[data-heat-filter="on"] .chatlist-chat:not(:has(.dialog-avatar[data-heat])) { display: none !important; }
 `;
   document.head.appendChild(style);
@@ -423,7 +436,9 @@ async function refreshBadge() {
 }
 
 // --- visibility / peer-change poll ---
+let syncTick = 0;
 function sync() {
+  syncTick++;
   const visible = !!getActiveInput();
   rootEl.classList.toggle('is-visible', visible);
   if(!visible) { closeMenu(); currentPeerId = null; chipEl.className = 'nykiss-qb__chip'; return; }
@@ -436,6 +451,12 @@ function sync() {
     if(rootEl.classList.contains('is-open')) renderMenu();
     refreshBadge();
     updateFabRing();
+  }
+
+  // Re-apply rings every ~3s to catch chats that were already in DOM
+  if(syncTick % 5 === 0) {
+    applyAllRings();
+    updateHeatChipCount();
   }
 
   if(!filterInited) {

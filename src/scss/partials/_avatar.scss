@@ -478,21 +478,21 @@
 
 // NYKISS Heat Pulse — colored ring on dialog avatars in chat list
 @keyframes nykiss-avatar-hot {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(#E05A20, 0.9), 0 0 6px rgba(#E05A20, 0.3); }
-  50%       { box-shadow: 0 0 0 2px rgba(#E05A20, 1),   0 0 16px rgba(#E05A20, 0.65); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(#E05A20, 0.95), 0 0 8px rgba(#E05A20, 0.45); }
+  50%       { box-shadow: 0 0 0 3px rgba(#FF6B30, 1),    0 0 18px rgba(#E05A20, 0.7); }
 }
 
 .dialog-avatar {
   &[data-heat="cold"] {
-    box-shadow: 0 0 0 2px rgba(#2A6B9A, 0.8), 0 0 5px rgba(#2A6B9A, 0.2);
+    box-shadow: 0 0 0 3px rgba(#2A6B9A, 0.9), 0 0 8px rgba(#2A6B9A, 0.35);
   }
   &[data-heat="warm"] {
-    box-shadow: 0 0 0 2px rgba(#C9A227, 1), 0 0 7px rgba(#C9A227, 0.4);
+    box-shadow: 0 0 0 3px rgba(#C9A227, 1), 0 0 10px rgba(#C9A227, 0.5);
   }
   &[data-heat="hot"] {
-    box-shadow: 0 0 0 2px rgba(#E05A20, 0.9), 0 0 8px rgba(#E05A20, 0.35);
+    box-shadow: 0 0 0 3px rgba(#E05A20, 0.95), 0 0 10px rgba(#E05A20, 0.45);
     @media (prefers-reduced-motion: no-preference) {
-      animation: nykiss-avatar-hot 1.6s ease-in-out infinite;
+      animation: nykiss-avatar-hot 1.4s ease-in-out infinite;
     }
   }
 }
