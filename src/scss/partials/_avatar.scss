@@ -490,6 +490,12 @@
 }
 
 .avatar[data-heat] {
+  // cold: a small blue ring, quieter than warm / hot
+  &[data-heat="cold"] {
+    box-shadow: 0 0 0 calc(var(--nykiss-ring, 3px) - 1px) rgba(#68a6d9, 0.95),
+      0 0 calc(var(--nykiss-glow, 8px) * .6) rgba(#68a6d9, 0.35);
+  }
+
   &[data-heat="warm"] {
     box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#C9A227, 1),
       0 0 calc(var(--nykiss-glow, 8px) * 1.25) rgba(#C9A227, 0.5);
@@ -524,6 +530,10 @@
   // the photo is scaled to 120/400, so the ring is drawn 1/0.3 thicker to land at ~3px
   --nykiss-ring: 10px;
   --nykiss-glow: 27px;
+}
+
+.profile-container.is-collapsed .profile-avatars-container[data-heat="cold"] .profile-avatars-avatar.active {
+  box-shadow: 0 0 0 calc(var(--nykiss-ring) - 3px) rgba(#68a6d9, 0.95), 0 0 calc(var(--nykiss-glow) * .6) rgba(#68a6d9, 0.35);
 }
 
 .profile-container.is-collapsed .profile-avatars-container[data-heat="warm"] .profile-avatars-avatar.active {

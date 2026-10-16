@@ -12,6 +12,7 @@
 // chat via the appImManager singleton.
 
 import appImManager from '@lib/appImManager';
+import rootScope from '@lib/rootScope';
 import getPeerActiveUsernames from '@appManagers/utils/peers/getPeerActiveUsernames';
 import {planFolders, FOLDER_CAP, LEGACY_HEAT_FOLDER_TITLES, HEAT_FOLDER_TITLES, HEAT_FOLDER_EMOTICONS, HeatKey} from '@lib/nykiss/heatFolders';
 
@@ -60,9 +61,10 @@ let ringFrame = 0;
 let ringFullScan = false;
 
 function setHeatAttr(el: HTMLElement, peerId: string | undefined) {
-  const heat = heatOf(peerId);
+  // only a мамонт the CRM knows gets a ring (cold = blue, small); everybody else stays bare
+  const heat = knownHeat(peerId);
   const cur = el.dataset.heat;
-  if(heat === 'cold') { if(cur) delete el.dataset.heat; } else if(cur !== heat) el.dataset.heat = heat;
+  if(!heat) { if(cur) delete el.dataset.heat; } else if(cur !== heat) el.dataset.heat = heat;
 }
 
 function paintAvatar(av: HTMLElement) {
@@ -220,6 +222,21 @@ async function runFolderPass() {
     if(op.id === null) await fs.createDialogFilter(filter);
     else await fs.updateDialogFilter(filter);
   }
+
+  await orderFolders();
+}
+
+// «Все» stays first, then «Тёплые», then «Горячие», then the user's own folders in their order.
+async function orderFolders() {
+  const fs = appImManager.managers.filtersStorage;
+  const custom: any[] = (await fs.getDialogFilters(true))
+  .filter((f: any) => f.id > 1)
+  .sort((a: any, b: any) => (a.localId ?? 0) - (b.localId ?? 0));
+  const rank = (f: any) => f.title?.text === HEAT_FOLDER_TITLES.warm ? 0 : f.title?.text === HEAT_FOLDER_TITLES.hot ? 1 : 2;
+  const wanted = custom.map((f, i) => ({f, i})).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).map(x => x.f.id);
+  if(wanted.every((id, i) => id === custom[i].id)) return;
+  // the app keeps «Все» first for everybody but premium, where it is part of the order
+  await fs.updateDialogFiltersOrder([...(rootScope.premium ? [0] : []), ...wanted]);
 }
 
 // A request that arrives mid-pass is not dropped: it marks the state dirty and the pass runs once more.
@@ -356,7 +373,7 @@ function injectStyle() {
   --nq-gold:#C9A227; --nq-gold-hi:#e9c860; --nq-gold-lo:#8a6d14;
   --nq-ink:#070807; --nq-surface:#12110b; --nq-surface-2:#1a1810;
   --nq-text:#F3EEDF; --nq-muted:#9a927d; --nq-line:#241f12; --nq-hair:rgba(201,162,39,.28);
-  --nq-cold:#7fa8c4; --nq-warm:#e8a23a; --nq-hot:#e5532d; --nq-green:#32a271; --nq-red:#c0525b;
+  --nq-cold:#68a6d9; --nq-warm:#e8a23a; --nq-hot:#e5532d; --nq-green:#32a271; --nq-red:#c0525b;
   --nq-fab:52px; --nq-gap:12px;
   position:fixed; z-index:5; display:none;
   right:max(16px, env(safe-area-inset-right));
@@ -415,7 +432,7 @@ function injectStyle() {
 @keyframes nq-chip{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
 /* --- MENU --- */
-.nykiss-qb__menu{position:absolute;right:0;bottom:calc(var(--nq-fab) + var(--nq-gap));
+.nykiss-qb__menu{zoom:.9;position:absolute;right:0;bottom:calc(var(--nq-fab) + var(--nq-gap));
   width:min(320px,calc(100vw - 32px));max-height:calc(100vh - 104px - var(--nq-fab) - var(--nq-gap) - 56px);overflow:auto;
   background:var(--nq-surface);color:var(--nq-text);border-radius:6px;
   box-shadow:0 22px 60px rgba(0,0,0,.7),0 0 0 1px var(--nq-hair);
