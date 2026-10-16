@@ -45,3 +45,14 @@ export function buildIndex(items: unknown): Map<string, TeamMember> {
   }
   return idx;
 }
+
+export const POLL_MS = 60_000;
+export const BACKOFF_MAX_MS = 600_000;
+
+/** Пауза до следующего опроса: после ошибок удваивается (60 с, 2, 4, 8 мин, потолок 10 мин),
+ *  но не короче Retry-After сервера (429 при бане IP: 15 минут). */
+export function pollDelay(fails: number, retryAfterMs = 0): number {
+  if(fails <= 0) return POLL_MS;
+  const back = Math.min(POLL_MS * 2 ** (fails - 1), BACKOFF_MAX_MS);
+  return Math.max(back, retryAfterMs);
+}

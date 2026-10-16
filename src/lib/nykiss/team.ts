@@ -2,12 +2,19 @@
 // Раз в минуту говорим серверу «я в сети» и тянем состав команды; на аватарке коллеги (список чатов, шапка
 // чата, профиль) появляется золотая метка, над ней подсказка с ником/рангом/огоньком. Состав приходит по
 // личному ключу воркера и не содержит денег. В Telegram ничего не пишется: это чисто клиентская метка.
+//
+// Опрос бережёт общий лимит сервера на IP (30 неверных ключей за 15 минут): 401 — ключ сбрасываем и молчим,
+// пока воркер не подключит новый; сеть/5xx/429 — пауза растёт вдвое; вкладка скрыта — не опрашиваем.
 
 import rootScope from '@lib/rootScope';
-import {API, getKey, fetchTimeout} from '@lib/nykiss/quickBubble';
-import {TeamMember, buildIndex, memberTitle} from '@lib/nykiss/teamModel';
+import contextMenuController from '@helpers/contextMenuController';
+import {getOverlayRoot, onAppWindowChange} from '@helpers/appWindow';
+import {toast} from '@components/toast';
+import {API, getKey, setKey} from '@lib/nykiss/quickBubble';
+import {TeamMember, buildIndex, memberTitle, pollDelay} from '@lib/nykiss/teamModel';
 
-const POLL_MS = 60_000;
+const NO_KEY_MS = 5_000;    // ключа нет: раз в 5 с читаем localStorage (копейки), ждём, пока его подключат
+const WARN_LS = 'nykiss_tid_warned';
 const AVATAR_SEL = '.avatar[data-peer-id]';
 const STYLE_ID = 'nykiss-team-style';
 
@@ -22,28 +29,86 @@ let fullScan = true;
 export function getTeamMembers(): TeamMember[] { return members; }
 export function getMe(): TeamMember | null { return me; }
 
-export async function teamApi(path: string, init: RequestInit = {}): Promise<any | null> {
-  const key = getKey();
-  if(!key) return null;   // ключ не введён: молча ничего не делаем, окно подключения не открываем
+type Reply = {status: 'ok' | 'auth' | 'retry', data?: any, wait?: number};
+
+/** Gram открыт не под тем Telegram-аккаунтом, что привязан в CRM (читает оверлей профиля). */
+export const IDENTITY_EVENT = 'nykiss:identity';
+let mismatch = false;
+export function isIdentityMismatch(): boolean { return mismatch; }
+
+let warnedMem = 0;      // запасной вариант, если localStorage недоступен
+let blockedUntil = 0;   // 429 от сервера: до этого момента не шлём вообще ничего (лимит общий на IP)
+
+const FETCH_TIMEOUT_MS = 12000;
+
+// fetch, который не может зависнуть: мёртвый сервер или застрявшее соединение становится ошибкой сети
+async function fetchTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const ctl = new AbortController();
+  const timer = window.setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetchTimeout(API + path, {
-      ...init,
-      headers: {'X-NYKISS-Key': key, ...(init.body ? {'Content-Type': 'application/json'} : {})}
-    });
-    return res.ok ? await res.json() : null;
-  } catch(e) {
-    return null;
+    return await fetch(url, {...init, signal: ctl.signal});
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 
-async function hello() {
-  const id = Number(rootScope.myId);
-  await teamApi('/messenger/hello', {method: 'POST', body: JSON.stringify(id ? {telegram_id: id} : {})});
+async function request(path: string, init: RequestInit = {}): Promise<Reply> {
+  const key = getKey();
+  if(!key) return {status: 'auth'};   // ключ не введён: молча ничего не делаем, окно подключения не открываем
+  if(Date.now() < blockedUntil) return {status: 'retry', wait: blockedUntil - Date.now()};
+  let res: Response;
+  try {
+    res = await fetchTimeout(API + path, {
+      ...init,
+      headers: {'X-NYKISS-Key': key, ...(init.body ? {'Content-Type': 'application/json'} : {})}
+    });
+  } catch(e) {
+    return {status: 'retry'};
+  }
+  if(res.status === 401) {
+    if(getKey() === key) setKey('');   // как api() в quickBubble; свежий ключ, введённый пока шёл запрос, не трогаем
+    return {status: 'auth'};
+  }
+  if(res.status === 429) {
+    const wait = (Number(res.headers.get('Retry-After')) || 900) * 1000;
+    blockedUntil = Date.now() + wait;
+    return {status: 'retry', wait};
+  }
+  if(!res.ok) return {status: 'retry'};
+  try {
+    return {status: 'ok', data: await res.json()};
+  } catch(e) {
+    return {status: 'retry'};
+  }
 }
 
-async function refresh() {
-  const data = await teamApi('/messenger/team');
-  if(!data) return;
+export async function teamApi(path: string, init: RequestInit = {}): Promise<any | null> {
+  const r = await request(path, init);
+  return r.status === 'ok' ? r.data : null;
+}
+
+function setMismatch(v: boolean) {
+  if(mismatch === v) return;
+  mismatch = v;
+  window.dispatchEvent(new CustomEvent(IDENTITY_EVENT, {detail: v}));
+}
+
+// Тост один раз на Telegram-аккаунт: воркер сидит в Gram не под тем аккаунтом, что в CRM, метка на нём не появится.
+function checkIdentity(id: number, data: any) {
+  if(!id || !data) return;
+  setMismatch(data.telegram_id_matches === false);
+  try {
+    if(data.telegram_id_matches !== false) { localStorage.removeItem(WARN_LS); return; }
+    if(localStorage.getItem(WARN_LS) === String(id)) return;
+    localStorage.setItem(WARN_LS, String(id));
+  } catch(e) {
+    if(warnedMem === id) return;
+    warnedMem = id;
+  }
+  toast('NYKISS: ты в Gram под другим Telegram-аккаунтом, чем в CRM. Метка на тебе не появится: зайди с основного.', undefined, 9000);
+}
+
+function apply(data: any) {
   index = buildIndex(data.items);
   members = (Array.isArray(data.items) ? data.items : []) as TeamMember[];
   me = members.find(m => m && m.me) || null;
@@ -51,12 +116,58 @@ async function refresh() {
   schedule();
 }
 
+async function cycle(): Promise<Reply> {
+  const id = Number(rootScope.myId);
+  const hi = await request('/messenger/hello', {method: 'POST', body: JSON.stringify(id ? {telegram_id: id} : {})});
+  if(hi.status !== 'ok') return hi;
+  checkIdentity(id, hi.data);
+  const tm = await request('/messenger/team');
+  if(tm.status === 'ok') apply(tm.data);
+  return tm;
+}
+
+// ---- цикл опроса: один таймер, пауза по результату ----------------------------------------------------
+
+let timer = 0;
+let nextAt = 0;
+let fails = 0;
+let running = false;
+
+function plan(ms: number) {
+  window.clearTimeout(timer);
+  nextAt = Date.now() + ms;
+  timer = window.setTimeout(tick, ms);
+}
+
+async function tick() {
+  timer = 0;
+  if(document.hidden) {   // скрытая вкладка не опрашивает; вернёт visibilitychange — но не раньше паузы после ошибок/429
+    nextAt = Math.max(blockedUntil, fails ? Date.now() + pollDelay(fails) : 0);
+    return;
+  }
+  if(running) return;
+  if(!getKey()) { fails = 0; plan(NO_KEY_MS); return; }
+  running = true;
+  let r: Reply;
+  try {
+    r = await cycle();
+  } finally {
+    running = false;
+  }
+  if(r.status === 'retry') plan(pollDelay(++fails, r.wait));
+  else { fails = 0; plan(r.status === 'ok' ? pollDelay(0) : NO_KEY_MS); }
+}
+
 // ---- метки на аватарках: один observer на весь документ, пачками в rAF --------------------------------
 
 function mark(el: HTMLElement) {
   const m = index.get(el.dataset.peerId || '');
   if(!m) {
-    if(el.dataset.nkTeam) { delete el.dataset.nkTeam; el.removeAttribute('data-nk-title'); }
+    if(el.dataset.nkTeam) {
+      delete el.dataset.nkTeam;
+      el.removeAttribute('data-nk-title');
+      el.removeAttribute('title');   // аватарки переиспользуются: подсказка прошлого коллеги не должна остаться
+    }
     return;
   }
   const state = m.online ? 'online' : 'offline';
@@ -105,19 +216,26 @@ function injectStyle() {
   const st = document.createElement('style');
   st.id = STYLE_ID;
   st.textContent = `
-.avatar[data-nk-team] { position: relative; }
-.avatar[data-nk-team]::after {
-  content: ''; position: absolute; right: -1px; bottom: -1px; z-index: 4; pointer-events: none;
-  width: 36%; height: 36%; min-width: 11px; min-height: 11px; max-width: 20px; max-height: 20px;
+:where(.avatar[data-nk-team]) { position: relative; }
+.avatar[data-nk-team] { --nk-badge: clamp(11px, calc(var(--size, 54px) * .36), 20px); }
+.avatar[data-nk-team]::before {
+  content: ''; position: absolute; z-index: 4; pointer-events: none;
+  inline-size: var(--nk-badge); block-size: var(--nk-badge);
+  inset-block-start: calc(var(--size, 54px) * .146 - var(--nk-badge) / 2);
+  inset-inline-start: calc(var(--size, 54px) * .146 - var(--nk-badge) / 2);
   border-radius: 50%; box-sizing: border-box; border: 1.5px solid #C9A227;
   background: #0b0c0a url("data:image/svg+xml,${BADGE_SVG}") center / 74% no-repeat;
 }
-.avatar[data-nk-team="online"]::after { box-shadow: 0 0 0 2px rgba(50, 162, 113, .95); }
+.avatar[data-nk-team="online"]::before { box-shadow: 0 0 0 2px rgba(50, 162, 113, .95); }
+.avatar:is(.avatar-16, .avatar-18, .avatar-20, .avatar-22)[data-nk-team]::before { display: none; }
+.bubbles-group-avatar[data-nk-team] { overflow: visible; }
 `;
   document.head.appendChild(st);
 }
 
-// ---- пункт «Профиль NYKISS» в левом меню: рядом с «NYKISS», без правок исходников сайдбара ----------
+// ---- пункт «Профиль NYKISS» в левом меню --------------------------------------------------------------
+// Меню строится заново при каждом открытии и кладётся в корень оверлеев (getOverlayRoot), поэтому следим
+// только за его прямыми детьми (без subtree) и берём лишь добавленные узлы .btn-menu.
 
 function injectMenuItem(menu: HTMLElement) {
   if(menu.querySelector('[data-nk-profile-item]')) return;
@@ -128,17 +246,30 @@ function injectMenuItem(menu: HTMLElement) {
   item.setAttribute('data-nk-profile-item', '1');
   const label = item.querySelector<HTMLElement>('.btn-menu-item-text') || item;
   label.textContent = 'Профиль NYKISS';
-  item.addEventListener('click', e => {
-    e.stopPropagation();
+  item.addEventListener('click', () => {
+    contextMenuController.close();
     import('@lib/nykiss/profile').then(({openMyProfile}) => openMyProfile());
   }, true);
   base.after(item);
 }
 
+let menuObserver: MutationObserver | null = null;
+
 function watchMenu() {
-  new MutationObserver(() => {
-    document.querySelectorAll<HTMLElement>('.btn-menu').forEach(injectMenuItem);
-  }).observe(document.body, {childList: true, subtree: true});
+  const attach = () => {
+    menuObserver?.disconnect();
+    const root = getOverlayRoot();   // сюда tweb монтирует меню: body активного окна (при Document PiP — другого)
+    menuObserver = new MutationObserver(records => {
+      for(const r of records) {
+        r.addedNodes.forEach(n => {
+          if(n.nodeType === 1 && (n as HTMLElement).classList.contains('btn-menu')) injectMenuItem(n as HTMLElement);
+        });
+      }
+    });
+    menuObserver.observe(root, {childList: true});
+  };
+  attach();
+  onAppWindowChange(attach);
 }
 
 export function initTeam() {
@@ -147,8 +278,7 @@ export function initTeam() {
   injectStyle();
   watch();
   watchMenu();
-  const tick = async() => { await hello(); await refresh(); };
-  tick();
-  window.setInterval(() => { if(!document.hidden) tick(); }, POLL_MS);
-  document.addEventListener('visibilitychange', () => { if(!document.hidden) tick(); });
+  plan(0);
+  // вернулись на вкладку: опрашиваем не раньше, чем положено (пауза после ошибок и 429 соблюдается)
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) plan(Math.max(0, nextAt - Date.now())); });
 }

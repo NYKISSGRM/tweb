@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {buildIndex, memberTitle, TeamMember} from '@lib/nykiss/teamModel';
+import {buildIndex, memberTitle, pollDelay, TeamMember} from '@lib/nykiss/teamModel';
 
 const base = (over: Partial<TeamMember> = {}): TeamMember => ({
   telegram_id: 101, name: 'Иван', role: 'worker', rank: {level: 3, name: 'Волк', color: '#C9A227'},
@@ -33,5 +33,13 @@ describe('nykiss team model', () => {
     expect(t).toBe('NYKISS · Иван · Волк · серия 7 дн. · в сети');
     expect(memberTitle(base({online: false, fire: null, rank: null, role: 'lead'}))).toBe('NYKISS · Иван · тимлид · не в сети');
     expect(t).not.toMatch(/\$|баланс|доход/i);
+  });
+
+  it('poll delay doubles after failures up to the cap', () => {
+    expect([0, 1, 2, 3, 4, 5, 9].map(f => pollDelay(f))).toEqual([60000, 60000, 120000, 240000, 480000, 600000, 600000]);
+  });
+
+  it('poll delay never goes below the server Retry-After', () => {
+    expect(pollDelay(1, 900000)).toBe(900000);
   });
 });

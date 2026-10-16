@@ -389,6 +389,13 @@ const Settings = () => {
       </InlinePortal>
       {peerProfileElement}
       <Section>
+        {/* NYKISS: my rank, fire, achievements and the team — right under the profile card */}
+        <Row clickable={() => { import('@lib/nykiss/profile').then(({openMyProfile}) => openMyProfile()); }}>
+          <Row.Icon icon="webview" />
+          <Row.Title>Профиль NYKISS</Row.Title>
+        </Row>
+      </Section>
+      <Section>
         <div class="profile-buttons">
           <For each={subTabConfigs}>
             {(item) => (
