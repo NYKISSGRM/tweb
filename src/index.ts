@@ -671,5 +671,7 @@ if(import.meta.env.DEV) {
 
     // NYKISS: mount the floating Quick Bubble once the IM page is up.
     import('./lib/nykiss/quickBubble').then(({initQuickBubble}) => initQuickBubble());
+    // NYKISS: team badges on colleagues' avatars + «Профиль NYKISS» menu entry.
+    import('./lib/nykiss/team').then(({initTeam}) => initTeam());
   }
 });
