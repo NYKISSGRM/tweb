@@ -9,7 +9,7 @@
 import rootScope from '@lib/rootScope';
 import {toast} from '@components/toast';
 import {API, getKey, setKey} from '@lib/nykiss/quickBubble';
-import {TeamMember, buildIndex, memberTitle, pollDelay, titleBadge} from '@lib/nykiss/teamModel';
+import {TeamMember, buildIndex, memberTitle, pollDelay, titleFire, titleRank} from '@lib/nykiss/teamModel';
 
 const NO_KEY_MS = 5_000;    // ключа нет: раз в 5 с читаем localStorage (копейки), ждём, пока его подключат
 const WARN_LS = 'nykiss_tid_warned';
@@ -167,11 +167,15 @@ function mark(el: HTMLElement) {
   if(el.getAttribute('data-nk-title') !== title) { el.setAttribute('data-nk-title', title); el.title = title; }
 }
 
-// имя коллеги получает значок ранга и огонёк (рисует CSS из атрибута: DOM и поведение имени не трогаем)
+// имя коллеги: эмодзи ранга ПЕРЕД именем, огонёк ПОСЛЕ него (рисует CSS из атрибутов: DOM и поведение имени не трогаем)
+function setAttr(el: HTMLElement, key: 'nkRank' | 'nkFire', value: string) {
+  if(value) { if(el.dataset[key] !== value) el.dataset[key] = value; } else if(el.dataset[key]) delete el.dataset[key];
+}
+
 function markTitle(el: HTMLElement) {
   const m = index.get(el.dataset.peerId || '');
-  const badge = m ? titleBadge(m) : '';
-  if(badge) { if(el.dataset.nkBadge !== badge) el.dataset.nkBadge = badge; } else if(el.dataset.nkBadge) delete el.dataset.nkBadge;
+  setAttr(el, 'nkRank', m ? titleRank(m) : '');
+  setAttr(el, 'nkFire', m ? titleFire(m) : '');
 }
 
 function flush() {
@@ -231,7 +235,8 @@ function injectStyle() {
 .avatar:is(.avatar-16, .avatar-18, .avatar-20, .avatar-22)[data-nk-team]::before { display: none; }
 
 .bubbles-group-avatar[data-nk-team] { overflow: visible; }
-.peer-title[data-nk-badge]::after { content: ' ' attr(data-nk-badge); font-style: normal; white-space: nowrap; }
+.peer-title[data-nk-rank]::before { content: attr(data-nk-rank) ' '; font-style: normal; }
+.peer-title[data-nk-fire]::after { content: attr(data-nk-fire); margin-inline-start: .5em; font-style: normal; white-space: nowrap; }
 `;
   document.head.appendChild(st);
 }

@@ -502,12 +502,13 @@ function injectStyle() {
 .nykiss-qb__fab[data-heat=cold] .i-cold,.nykiss-qb__fab[data-heat=warm] .i-warm,.nykiss-qb__fab[data-heat=hot] .i-hot{display:block}
 
 /* --- CHIP --- */
-.nykiss-qb__chip{position:absolute;right:0;bottom:calc(var(--nq-fab) + 14px);display:none;align-items:center;gap:6px;white-space:nowrap;
-  height:26px;padding:0 10px 0 8px;border-radius:5px;background:var(--nq-surface);color:var(--nq-text);
-  font:700 12px/1 Manrope,sans-serif;letter-spacing:.01em;
+.nykiss-qb__chip{position:absolute;right:0;bottom:calc(var(--nq-fab) + 12px);display:none;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;
+  height:22px;padding:0 8px 0 7px;border-radius:5px;background:rgba(18,17,11,.92);color:var(--nq-text);
+  font:700 11px/1 Manrope,sans-serif;letter-spacing:.01em;
   box-shadow:0 6px 16px rgba(0,0,0,.5),inset 0 0 0 1px var(--nq-hair);
   animation:nq-chip .22s cubic-bezier(.2,.8,.2,1);}
-.nykiss-qb__chip svg{width:14px;height:14px;flex:none}
+.nykiss-qb__chip svg{width:12px;height:12px;flex:none}
+.nykiss-qb__chip.is-dismissed{display:none!important}
 .nykiss-qb__chip.is-shown{display:inline-flex}
 .nykiss-qb__chip b{font-variant-numeric:tabular-nums;font-weight:800;color:var(--nq-gold-hi)}
 .nykiss-qb__chip.is-mine svg{color:var(--nq-green)}
@@ -517,6 +518,15 @@ function injectStyle() {
 .nykiss-qb__chip.is-foreign svg{color:var(--nq-red)}
 .nykiss-qb__chip.is-team{color:var(--nq-text)}
 .nykiss-qb__chip.is-team svg{color:var(--nq-gold)}
+/* the button can be dragged anywhere; the chip and the menu open towards the free side */
+.nykiss-qb__fab{touch-action:none}
+.nykiss-qb.is-dragging .nykiss-qb__fab{cursor:grabbing;transform:scale(1.06);transition:none}
+.nykiss-qb.is-dragging .nykiss-qb__chip,.nykiss-qb.is-dragging .nykiss-qb__menu{display:none}
+.nykiss-qb.is-left .nykiss-qb__chip,.nykiss-qb.is-left .nykiss-qb__menu{right:auto;left:0}
+.nykiss-qb.is-left .nykiss-qb__menu{transform-origin:0 100%}
+.nykiss-qb.is-below .nykiss-qb__chip{bottom:auto;top:calc(var(--nq-fab) + 12px)}
+.nykiss-qb.is-below .nykiss-qb__menu{bottom:auto;top:calc(var(--nq-fab) + var(--nq-gap));transform-origin:100% 0}
+.nykiss-qb.is-below.is-left .nykiss-qb__menu{transform-origin:0 0}
 .nykiss-qb.is-open .nykiss-qb__chip{display:none}
 @keyframes nq-chip{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
@@ -618,6 +628,10 @@ function injectStyle() {
 @media (max-width:480px){
   .nykiss-qb{right:max(14px,env(safe-area-inset-right))}
   .nykiss-qb__menu{width:calc(100vw - 28px);right:0}
+  /* on a phone the menu spans the screen, so a moved button keeps it fixed to the viewport, above or below the button */
+  .nykiss-qb.is-moved .nykiss-qb__menu{position:fixed;left:14px;right:14px;width:auto}
+  .nykiss-qb.is-moved:not(.is-below) .nykiss-qb__menu{top:auto;bottom:calc(100vh - var(--nq-y,0px) + var(--nq-gap))}
+  .nykiss-qb.is-moved.is-below .nykiss-qb__menu{bottom:auto;top:calc(var(--nq-y,0px) + var(--nq-fab) + var(--nq-gap))}
 }
 @media (prefers-reduced-motion:reduce){.nykiss-qb *{animation:none!important;transition-duration:.01s!important}}
 .nykiss-qb__build{font:600 9px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:none;color:#5d5748}
@@ -649,12 +663,93 @@ function closeMenu() {
   rootEl.classList.remove('is-open');
   fabEl.setAttribute('aria-expanded', 'false');
 }
+// A moved button leaves less room on one side: the menu takes the room that is there (zoom .9 is on the menu itself).
+function placeMenu() {
+  if(!rootEl.classList.contains('is-moved')) { menuEl.style.maxHeight = ''; return; }
+  const r = rootEl.getBoundingClientRect();
+  const room = rootEl.classList.contains('is-below') ? window.innerHeight - r.bottom : r.top;
+  menuEl.style.maxHeight = Math.max(160, (room - 12 - 12) / .9) + 'px';
+}
+
 function openMenu() {
+  placeMenu();
   rootEl.classList.add('is-open');
   fabEl.setAttribute('aria-expanded', 'true');
   renderMenu();
 }
 function toggleMenu() { rootEl.classList.contains('is-open') ? closeMenu() : openMenu(); }
+
+// --- the button can be moved: dragged anywhere, the place is remembered per browser ---
+const POS_LS = 'nykiss_qb_pos';
+const FAB_SIZE = 52;
+const EDGE = 8;
+let dragSwallowClick = false;
+
+function readPos(): {x: number, y: number} | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(POS_LS) || 'null');
+    return v && Number.isFinite(v.x) && Number.isFinite(v.y) ? v : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+function applyPos(x: number, y: number) {
+  const cx = Math.min(Math.max(EDGE, x), window.innerWidth - FAB_SIZE - EDGE);
+  const cy = Math.min(Math.max(EDGE, y), window.innerHeight - FAB_SIZE - EDGE);
+  rootEl.style.left = cx + 'px';
+  rootEl.style.top = cy + 'px';
+  rootEl.style.right = 'auto';
+  rootEl.style.bottom = 'auto';
+  rootEl.style.setProperty('--nq-x', cx + 'px');
+  rootEl.style.setProperty('--nq-y', cy + 'px');
+  rootEl.classList.add('is-moved');
+  rootEl.classList.toggle('is-left', cx + FAB_SIZE / 2 < window.innerWidth / 2);
+  rootEl.classList.toggle('is-below', cy + FAB_SIZE / 2 < window.innerHeight / 2);
+}
+
+function initDrag() {
+  let start: {px: number, py: number, x: number, y: number} | null = null;
+  let moved = false;
+  fabEl.addEventListener('pointerdown', (e) => {
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    const r = rootEl.getBoundingClientRect();
+    start = {px: e.clientX, py: e.clientY, x: r.left, y: r.top};
+    moved = false;
+  });
+  fabEl.addEventListener('pointermove', (e) => {
+    if(!start) return;
+    const dx = e.clientX - start.px, dy = e.clientY - start.py;
+    if(!moved && Math.hypot(dx, dy) < 6) return;
+    if(!moved) {
+      moved = true;
+      closeMenu();
+      rootEl.classList.add('is-dragging');
+      try { fabEl.setPointerCapture(e.pointerId); } catch(err) { /* a lost pointer is not a problem */ }
+    }
+    applyPos(start.x + dx, start.y + dy);
+    e.preventDefault();
+  });
+  const end = () => {
+    if(!start) return;
+    if(moved) {
+      const r = rootEl.getBoundingClientRect();
+      try { localStorage.setItem(POS_LS, JSON.stringify({x: r.left, y: r.top})); } catch(err) { /* private mode: the place lasts until reload */ }
+      dragSwallowClick = true;                       // the click that ends a drag must not open the menu
+      window.setTimeout(() => { dragSwallowClick = false; }, 0);
+    }
+    start = null;
+    rootEl.classList.remove('is-dragging');
+  };
+  fabEl.addEventListener('pointerup', end);
+  fabEl.addEventListener('pointercancel', end);
+  window.addEventListener('resize', () => {
+    const r = rootEl.classList.contains('is-moved') ? rootEl.getBoundingClientRect() : null;
+    if(r) applyPos(r.left, r.top);
+  });
+  const saved = readPos();
+  if(saved) applyPos(saved.x, saved.y);
+}
 
 // --- connect flow ---
 export async function promptConnect(): Promise<boolean> {
@@ -903,11 +998,14 @@ function setChip(kind: 'mine' | 'none' | 'foreign' | 'team' | '', amount: unknow
   chipEl.className = 'nykiss-qb__chip';
   if(!kind) { chipEl.innerHTML = ''; return; }
   chipEl.innerHTML = kind === 'mine' ? ic('check') + `<span>твой · <b>$${money(amount)}</b></span>`
-    : kind === 'team' ? ic('team') + `<span>воркер · ${escapeHtml(amount || 'команда')}</span>`
+    : kind === 'team' ? ic('team') + `<span>${escapeHtml(amount || 'команда')}</span>`
     : kind === 'foreign' ? ic('lock') + '<span>чужой мамонт</span>'
       : ic('plus') + '<span>не в CRM</span>';
-  chipEl.className = 'nykiss-qb__chip is-shown is-' + kind;
+  chipEl.className = 'nykiss-qb__chip is-shown is-' + kind + (chipDismissedFor && chipDismissedFor === String(currentPeerId) ? ' is-dismissed' : '');
 }
+
+// a click on the chip hides it for this chat only
+let chipDismissedFor = '';
 
 async function refreshBadge() {
   setChip('');
@@ -1012,10 +1110,16 @@ export function initQuickBubble() {
   fabEl.setAttribute('aria-expanded', 'false');
   fabEl.innerHTML = '<span class="nykiss-qb__fab-n">N</span>' +
     `<span class="nykiss-qb__badge" aria-hidden="true">${ic('cold', 'i-cold')}${ic('warm', 'i-warm')}${ic('hot', 'i-hot')}</span>`;
-  fabEl.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+  fabEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if(dragSwallowClick) return;
+    toggleMenu();
+  });
 
   rootEl.append(chipEl, menuEl, fabEl);
   document.body.append(rootEl);
+  initDrag();
+  chipEl.addEventListener('click', (e) => { e.stopPropagation(); chipDismissedFor = String(currentPeerId); chipEl.classList.add('is-dismissed'); });
 
   document.addEventListener('click', (e) => { if(!rootEl.contains(e.target as Node)) closeMenu(); });
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeMenu(); });

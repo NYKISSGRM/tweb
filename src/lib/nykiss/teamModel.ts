@@ -24,11 +24,14 @@ export function memberTitle(m: TeamMember): string {
   return parts.join(' · ');
 }
 
-/** Значок у имени коллеги: эмодзи ранга и огонёк с 3 дней. Приходит с сервера, поэтому режем длину и берём только текст. */
-export function titleBadge(m: TeamMember): string {
-  const e = typeof m.rank?.emoji === 'string' ? m.rank.emoji.slice(0, 8) : '';
-  const f = m.fire && m.fire.len >= 3 && m.fire.state !== 'lost' ? ` 🔥${Math.floor(m.fire.len)}` : '';
-  return (e + f).trim();
+/** Эмодзи ранга: стоит ПЕРЕД именем коллеги. Приходит с сервера, поэтому режем длину и берём только текст. */
+export function titleRank(m: TeamMember): string {
+  return typeof m.rank?.emoji === 'string' ? m.rank.emoji.slice(0, 8) : '';
+}
+
+/** Огонёк с 3 дней: стоит ПОСЛЕ имени. */
+export function titleFire(m: TeamMember): string {
+  return m.fire && m.fire.len >= 3 && m.fire.state !== 'lost' ? `🔥${Math.floor(m.fire.len)}` : '';
 }
 
 /** Индекс по peer id: бейдж ставим только коллегам (себя не помечаем). Ответ сервера считаем недоверенным. */
