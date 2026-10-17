@@ -17,4 +17,7 @@
         <item name="android:statusBarColor">@color/felt_black</item>
         <item name="android:navigationBarColor">@color/felt_black</item>
     </style>
+
+    <!-- Прозрачное окно точки входа: сразу уходит в Chrome, без белой вспышки. -->
+    <style name="Theme.NykissGram.Launch" parent="android:Theme.Translucent.NoTitleBar" />
 </resources>

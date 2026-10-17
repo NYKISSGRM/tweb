@@ -82,4 +82,6 @@ dependencies {
     implementation 'androidx.core:core-splashscreen:1.0.1'
     implementation 'androidx.activity:activity:1.9.3'
     implementation 'androidx.webkit:webkit:1.12.1'
+    // Chrome-движок (Trusted Web Activity): уведомления, звонки, фоновая работа. Если Chrome нет — откат на свой WebView.
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
 }
