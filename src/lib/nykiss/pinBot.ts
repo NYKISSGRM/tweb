@@ -79,5 +79,5 @@ export function initPinBot() {
     return lastStatus;
   };
   window.setTimeout(run, 6000);
-  window.setInterval(run, PASS_MS);
+  window.setInterval(() => { if(!document.hidden) run(); }, PASS_MS);
 }

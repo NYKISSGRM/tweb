@@ -480,7 +480,7 @@ function injectStyle() {
   box-shadow:0 8px 22px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45),inset 0 -2px 4px rgba(90,60,0,.35);
   outline:2px solid transparent;outline-offset:3px;
   transition:transform .2s cubic-bezier(.2,.8,.2,1),outline-color .25s;}
-.nykiss-qb__fab:hover{transform:translateY(-1px)}
+@media (hover:hover){.nykiss-qb__fab:hover{transform:translateY(-1px)}}
 .nykiss-qb__fab:active{transform:scale(.95)}
 .nykiss-qb__fab:focus-visible{outline-color:var(--nq-text)}
 .nykiss-qb__fab-n{transition:transform .25s cubic-bezier(.2,.8,.2,1)}
@@ -532,7 +532,7 @@ function injectStyle() {
 
 /* --- MENU --- */
 .nykiss-qb__menu{zoom:.9;position:absolute;right:0;bottom:calc(var(--nq-fab) + var(--nq-gap));
-  width:min(320px,calc(100vw - 32px));max-height:calc(100vh - 104px - var(--nq-fab) - var(--nq-gap) - 56px);overflow:auto;
+  width:min(320px,calc(100vw - 32px));max-height:calc(100vh - 104px - var(--nq-fab) - var(--nq-gap) - 56px);max-height:calc(100dvh - 104px - var(--nq-fab) - var(--nq-gap) - 56px);overflow:auto;
   background:var(--nq-surface);color:var(--nq-text);border-radius:6px;
   box-shadow:0 22px 60px rgba(0,0,0,.7),0 0 0 1px var(--nq-hair);
   transform-origin:100% 100%;opacity:0;transform:translateY(10px) scale(.97);pointer-events:none;visibility:hidden;
@@ -580,7 +580,7 @@ function injectStyle() {
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
   font:700 12px/1 Manrope,sans-serif;transition:color .2s}
 .nykiss-qb__opt svg{width:20px;height:20px}
-.nykiss-qb__opt:hover{color:var(--nq-text)}
+@media (hover:hover){.nykiss-qb__opt:hover{color:var(--nq-text)}}
 .nykiss-qb__opt[aria-checked=true]{cursor:default}
 .nykiss-qb__opt[data-k=cold][aria-checked=true]{color:var(--nq-cold)}
 .nykiss-qb__opt[data-k=warm][aria-checked=true]{color:var(--nq-warm)}
@@ -607,11 +607,11 @@ function injectStyle() {
   box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 6px 16px rgba(201,162,39,.18);
   position:relative;overflow:hidden;transition:transform .12s,filter .15s}
 .nykiss-qb__cta svg{width:18px;height:18px}
-.nykiss-qb__cta:hover{filter:brightness(1.07)}
+@media (hover:hover){.nykiss-qb__cta:hover{filter:brightness(1.07)}}
 .nykiss-qb__cta:active{transform:scale(.985)}
 .nykiss-qb__cta::after{content:"";position:absolute;top:0;bottom:0;width:40%;left:-60%;transform:skewX(-20deg);
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent)}
-.nykiss-qb__cta:hover::after{left:130%;transition:left .6s ease}
+@media (hover:hover){.nykiss-qb__cta:hover::after{left:130%;transition:left .6s ease}}
 .nykiss-qb__cta:disabled{filter:saturate(.5) brightness(.8);cursor:default}
 .nykiss-qb__spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(26,18,6,.3);border-top-color:#1a1206;animation:nq-spin .7s linear infinite}
 @keyframes nq-spin{to{transform:rotate(360deg)}}
@@ -630,8 +630,15 @@ function injectStyle() {
   .nykiss-qb__menu{width:calc(100vw - 28px);right:0}
   /* on a phone the menu spans the screen, so a moved button keeps it fixed to the viewport, above or below the button */
   .nykiss-qb.is-moved .nykiss-qb__menu{position:fixed;left:14px;right:14px;width:auto}
-  .nykiss-qb.is-moved:not(.is-below) .nykiss-qb__menu{top:auto;bottom:calc(100vh - var(--nq-y,0px) + var(--nq-gap))}
+  .nykiss-qb.is-moved:not(.is-below) .nykiss-qb__menu{top:auto;bottom:calc(100vh - var(--nq-y,0px) + var(--nq-gap));bottom:calc(100dvh - var(--nq-y,0px) + var(--nq-gap))}
   .nykiss-qb.is-moved.is-below .nykiss-qb__menu{bottom:auto;top:calc(var(--nq-y,0px) + var(--nq-fab) + var(--nq-gap))}
+}
+@media (max-width:600px){
+  .nykiss-qb__menu{zoom:1}
+  .nykiss-qb__menu::before{display:none}
+  .nykiss-qb__fab[data-heat=hot]{animation:none}
+  .nykiss-qb__chip{min-height:32px;padding-top:0;padding-bottom:0;font-size:13px}
+  .nykiss-qb__chip::after{content:"";position:absolute;inset:-6px}
 }
 @media (prefers-reduced-motion:reduce){.nykiss-qb *{animation:none!important;transition-duration:.01s!important}}
 .nykiss-qb__build{font:600 9px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:none;color:#5d5748}
@@ -697,7 +704,9 @@ function readPos(): {x: number, y: number} | null {
 
 function applyPos(x: number, y: number) {
   const cx = Math.min(Math.max(EDGE, x), window.innerWidth - FAB_SIZE - EDGE);
-  const cy = Math.min(Math.max(EDGE, y), window.innerHeight - FAB_SIZE - EDGE);
+  const bar = Array.from(document.querySelectorAll<HTMLElement>('.chat-input')).find((el) => el.offsetParent !== null);
+  const floor = Math.min(window.innerHeight, bar ? bar.getBoundingClientRect().top : window.innerHeight);
+  const cy = Math.min(Math.max(EDGE, y), Math.max(EDGE, floor - FAB_SIZE - EDGE));
   rootEl.style.left = cx + 'px';
   rootEl.style.top = cy + 'px';
   rootEl.style.right = 'auto';
@@ -1066,10 +1075,9 @@ async function nykissRepair() {
 // --- visibility / peer change ---
 // Runs on appImManager's `peer_changed` (instant) and on a slow timer for what has no event: the chat
 // column sliding in and out on a phone, avatars rendered before the observer attached.
-const SYNC_MS = 1000;
-let syncTick = 0;
+const SYNC_MS = 2000;
 function sync() {
-  syncTick++;
+  if(document.hidden) return;
   // no open chat → no input: skip the DOM query (and the layout read behind offsetParent) altogether
   const visible = !!appImManager.chat?.peerId && !!getActiveInput();
   rootEl.classList.toggle('is-visible', visible);
@@ -1085,8 +1093,6 @@ function sync() {
     if(getKey()) refreshHeat();
   }
 
-  // safety net for avatars that were rendered before the observer attached
-  if(syncTick % 10 === 0) applyAllRings();
 }
 
 export function initQuickBubble() {
@@ -1133,9 +1139,10 @@ export function initQuickBubble() {
   watchAvatars();
   window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
-  window.setInterval(refreshHeat, 20000);
+  window.setInterval(() => { if(!document.hidden) refreshHeat(); }, 20000);
   initPinBot();
   initStartFolder();
   window.setInterval(sync, SYNC_MS);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) sync(); });
   appImManager.addEventListener('peer_changed', sync);
 }

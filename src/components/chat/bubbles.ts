@@ -1587,6 +1587,18 @@ export default class ChatBubbles {
       if(!target || !this.scrollable.container.contains(target)) return;
       buttonKeyDown(e, target);
     });
+    if(IS_TOUCH_SUPPORTED) {
+      // NYKISS: on a phone the keyboard closes when the user scrolls the messages or taps empty space in the list
+      const blurTyping = () => {
+        const el = document.activeElement as HTMLElement | null;
+        if(el && (el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) el.blur();
+      };
+      const container = this.scrollable.container;
+      this.listenerSetter.add(container)('touchmove', blurTyping, {passive: true});
+      this.listenerSetter.add(container)('touchstart', (e: TouchEvent) => {
+        if(!(e.target as HTMLElement).closest('a,button,input,textarea,[contenteditable],[role="button"]')) blurTyping();
+      }, {passive: true});
+    }
     // this.listenerSetter.add(this.bubblesContainer)('click', this.onBubblesClick/* , {capture: true, passive: false} */);
 
     this.listenerSetter.add(this.scrollable.container)('mousedown', (e) => {

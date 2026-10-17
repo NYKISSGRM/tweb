@@ -582,6 +582,7 @@ function injectNykissWallpaperStyle() {
   background-color: #070807;
   filter: blur(3px) saturate(.9) brightness(.82);
 }
+@media (hover: none) { .nykiss-chat-wallpaper { filter: none !important; } }
 .nykiss-chat-wallpaper > * { visibility: hidden; }
 .nykiss-chat-wallpaper::after {
   content: '';
