@@ -42,8 +42,20 @@
       "identity": "-",
       "hardenedRuntime": false,
       "target": [
-        {"target": "dmg", "arch": ["arm64", "x64"]},
-        {"target": "zip", "arch": ["arm64", "x64"]}
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "extendInfo": {
         "NSCameraUsageDescription": "NYKISS Gram uses the camera for video calls and video messages.",
@@ -53,8 +65,18 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        {"target": "nsis", "arch": ["x64"]},
-        {"target": "portable", "arch": ["x64"]}
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
@@ -69,7 +91,12 @@
     "linux": {
       "icon": "build/icon.png",
       "category": "Network;InstantMessaging",
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "maintainer": "NYKISS <noreply@nykissgrm.github.io>"
     }
-  }
+  },
+  "homepage": "https://nykissgrm.github.io/tweb/"
 }
