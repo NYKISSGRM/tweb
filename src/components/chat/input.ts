@@ -4749,6 +4749,9 @@ export default class ChatInput {
 
     this.updateSendBtn();
     this.onMessageSent2?.();
+
+    // NYKISS: on a phone the keyboard goes away once the message is sent
+    if(IS_TOUCH_SUPPORTED && IS_MOBILE_SAFARI && clearInput) blurActiveElement();
   }
 
   public static async sendMessageWithForward({
