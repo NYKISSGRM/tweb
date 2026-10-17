@@ -684,6 +684,7 @@ const POS_LS = 'nykiss_qb_pos';
 const FAB_SIZE = 52;
 const EDGE = 8;
 let dragSwallowClick = false;
+let wantPos: {x: number, y: number} | null = null; // where the user put the button; resize re-clamps THIS, never the current rect
 
 function readPos(): {x: number, y: number} | null {
   try {
@@ -734,6 +735,7 @@ function initDrag() {
     if(!start) return;
     if(moved) {
       const r = rootEl.getBoundingClientRect();
+      wantPos = {x: r.left, y: r.top};
       try { localStorage.setItem(POS_LS, JSON.stringify({x: r.left, y: r.top})); } catch(err) { /* private mode: the place lasts until reload */ }
       dragSwallowClick = true;                       // the click that ends a drag must not open the menu
       window.setTimeout(() => { dragSwallowClick = false; }, 0);
@@ -744,11 +746,10 @@ function initDrag() {
   fabEl.addEventListener('pointerup', end);
   fabEl.addEventListener('pointercancel', end);
   window.addEventListener('resize', () => {
-    const r = rootEl.classList.contains('is-moved') ? rootEl.getBoundingClientRect() : null;
-    if(r) applyPos(r.left, r.top);
+    if(wantPos) applyPos(wantPos.x, wantPos.y);
   });
   const saved = readPos();
-  if(saved) applyPos(saved.x, saved.y);
+  if(saved) { wantPos = saved; applyPos(saved.x, saved.y); }
 }
 
 // --- connect flow ---
