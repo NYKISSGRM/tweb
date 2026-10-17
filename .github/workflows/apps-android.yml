@@ -1,0 +1,127 @@
+name: Android APK (NYKISS Gram)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия APK (x.y.z). Для тегов android-vX.Y.Z берётся из тега'
+        required: false
+        default: '0.0.0-dev'
+  push:
+    tags: ['android-v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apps-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Секреты нельзя читать в if: напрямую, поэтому сводим их к флагу.
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_B64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: node apps/android/scripts/version.mjs
+
+      - name: Signing mode
+        run: |
+          if [ "$HAS_KEYSTORE" = "true" ]; then
+            echo "Секреты подписи найдены: собираю подписанный RELEASE-APK."
+          else
+            echo "::warning::Секретов ANDROID_KEYSTORE_* нет. Собираю DEBUG-APK (подпись debug-ключом, applicationId .debug). Для боевой сборки добавь секреты, см. apps/android/README.md"
+          fi
+
+      - name: Decode keystore
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/nykiss-gram.jks"
+          echo "NYKISS_KEYSTORE_FILE=$RUNNER_TEMP/nykiss-gram.jks" >> "$GITHUB_ENV"
+
+      - name: Build release
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: apps/android
+        env:
+          NYKISS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          NYKISS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          NYKISS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease -PversionName='${{ steps.ver.outputs.name }}' -PversionCode='${{ steps.ver.outputs.code }}'
+
+      - name: Build debug (no signing secrets)
+        if: env.HAS_KEYSTORE != 'true'
+        working-directory: apps/android
+        run: ./gradlew --no-daemon assembleDebug -PversionName='${{ steps.ver.outputs.name }}' -PversionCode='${{ steps.ver.outputs.code }}'
+
+      - name: Collect and verify APK
+        id: apk
+        run: |
+          if [ "$HAS_KEYSTORE" = "true" ]; then
+            SRC=$(ls apps/android/app/build/outputs/apk/release/*.apk)
+            KIND=release
+          else
+            SRC=$(ls apps/android/app/build/outputs/apk/debug/*.apk)
+            KIND=debug
+          fi
+          OUT="nykiss-gram-${{ steps.ver.outputs.name }}-${KIND}.apk"
+          cp "$SRC" "$OUT"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --verbose --print-certs "$OUT" | grep -E "Verifies|SHA-256|Verified using v2|Verified using v3"
+          sha256sum "$OUT" > "$OUT.sha256"
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
+
+      - name: Remove keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nykiss-gram.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nykiss-gram-apk-${{ steps.apk.outputs.kind }}
+          path: |
+            ${{ steps.apk.outputs.file }}
+            ${{ steps.apk.outputs.file }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: steps.ver.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          FILE: ${{ steps.apk.outputs.file }}
+          KIND: ${{ steps.apk.outputs.kind }}
+        run: |
+          FLAGS=""
+          NOTES="NYKISS Gram для Android, версия ${TAG#android-v}. Установка: скачай APK, открой, разреши установку из этого источника."
+          if [ "$KIND" != "release" ]; then
+            FLAGS="--prerelease"
+            NOTES="$NOTES ВНИМАНИЕ: это debug-сборка (нет ключа подписи), обновляться поверх боевой версии не будет."
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$FILE" "$FILE.sha256" --clobber
+          else
+            gh release create "$TAG" "$FILE" "$FILE.sha256" --verify-tag --title "NYKISS Gram Android ${TAG#android-v}" --notes "$NOTES" $FLAGS
+          fi

@@ -1,0 +1,85 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Версия приложения. CI передаёт -PversionName=1.2.3 (из тега android-v1.2.3) и
+// -PversionCode=<номер запуска workflow>. Локально — 0.0.0-local / 1.
+def appVersionName = (project.findProperty('versionName') ?: '0.0.0-local').toString()
+def appVersionCode = (project.findProperty('versionCode') ?: '1').toString().toInteger()
+
+// Подпись release. Данные приходят только из переменных окружения (CI) или из
+// ~/.nykiss-secrets/android/signing.properties — в репозитории их нет.
+def signingProps = new Properties()
+def localSigning = new File(System.getProperty('user.home'), '.nykiss-secrets/android/signing.properties')
+if (localSigning.exists()) {
+    localSigning.withInputStream { signingProps.load(it) }
+}
+def sign = { String envKey, String propKey ->
+    System.getenv(envKey) ?: signingProps.getProperty(propKey)
+}
+def ksFile = sign('NYKISS_KEYSTORE_FILE', 'storeFile')
+def ksPass = sign('NYKISS_KEYSTORE_PASSWORD', 'storePassword')
+def ksAlias = sign('NYKISS_KEY_ALIAS', 'keyAlias')
+def keyPass = sign('NYKISS_KEY_PASSWORD', 'keyPassword')
+def hasSigning = ksFile && ksPass && ksAlias && keyPass && new File(ksFile).exists()
+
+android {
+    namespace 'app.nykiss.gram'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'app.nykiss.gram'
+        minSdk 24
+        targetSdk 35
+        versionCode appVersionCode
+        versionName appVersionName
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    signingConfigs {
+        if (hasSigning) {
+            release {
+                storeFile file(ksFile)
+                storePassword ksPass
+                keyAlias ksAlias
+                keyPassword keyPass
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+            resValue 'string', 'app_name', 'NYKISS Gram (debug)'
+        }
+        release {
+            minifyEnabled false
+            resValue 'string', 'app_name', 'NYKISS Gram'
+            if (hasSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    // выравниваем версии kotlin-stdlib (иначе Duplicate class от androidx 1.15 + старых транзитивных)
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+    implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.core:core-splashscreen:1.0.1'
+    implementation 'androidx.activity:activity:1.9.3'
+    implementation 'androidx.webkit:webkit:1.12.1'
+}

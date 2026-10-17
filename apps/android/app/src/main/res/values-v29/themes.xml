@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NykissGram" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/felt_black</item>
+        <item name="android:colorBackground">@color/felt_black</item>
+        <item name="android:statusBarColor">@color/felt_black</item>
+        <item name="android:navigationBarColor">@color/felt_black</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
+</resources>
