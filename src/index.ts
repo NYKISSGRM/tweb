@@ -126,7 +126,8 @@ async function checkLastActiveAccountFromTMe() {
 
 function setManifest() {
   const manifest = document.getElementById('manifest') as HTMLLinkElement;
-  if(manifest) manifest.href = `site${IS_APPLE && !IS_APPLE_MOBILE ? '_apple' : ''}.webmanifest?v=p9R6mT3xKv`;
+  // NYKISS: index.html carries the installable NYKISS manifest; Telegram's own is only a fallback.
+  if(manifest && !manifest.getAttribute('href')) manifest.href = `site${IS_APPLE && !IS_APPLE_MOBILE ? '_apple' : ''}.webmanifest?v=p9R6mT3xKv`;
 }
 
 function setViewportHeightListeners() {
@@ -418,6 +419,7 @@ if(import.meta.env.DEV) {
   toggleAttributePolyfill();
   replaceChildrenPolyfill();
   setManifest();
+  import('./lib/nykiss/pwa').then(({initPwa}) => initPwa());
   setViewportHeightListeners();
   setWorkerProxy; // * just to import
   listenForWindowPrint();

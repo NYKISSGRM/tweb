@@ -1,5 +1,5 @@
 import {logger, LogTypes} from '@lib/logger';
-import {CACHE_ASSETS_NAME, requestCache} from '@lib/serviceWorker/cache';
+import {CACHE_ASSETS_NAME, isShellNavigation, requestCache, requestShell} from '@lib/serviceWorker/cache';
 import onStreamFetch, {toggleStreamInUse} from '@lib/serviceWorker/stream';
 import {closeAllNotifications, fillPushObject, onPing, onShownNotification, resetPushAccounts} from '@lib/serviceWorker/push';
 import CacheStorageController from '@lib/files/cacheStorage';
@@ -267,6 +267,10 @@ watchCacheStoragesLifetime({
 watchMtprotoOnDev({connectedWindows, onWindowConnected});
 
 const onFetch = (event: FetchEvent): void => {
+  if(import.meta.env.PROD && isShellNavigation(event)) {
+    return event.respondWith(requestShell(event));
+  }
+
   // Web manifests must reach the network so installed PWA metadata can update.
   if(
     import.meta.env.PROD &&

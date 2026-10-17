@@ -53,6 +53,12 @@ jobs:
       - name: Copy static assets into dist
         run: cp -r public/assets dist/assets
 
+      # PWA: the installable manifest and the how-to page sit in public/ next to
+      # index.html, so they are copied one by one (public/ also holds stale
+      # build leftovers that must not reach dist).
+      - name: Copy PWA manifest and install page into dist
+        run: cp public/manifest.webmanifest public/install.html dist/
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

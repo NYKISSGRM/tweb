@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Установить NYKISS Gram</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070807">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/nykiss-icon-192.png?v=n1">
+<link rel="apple-touch-icon" href="assets/img/nykiss-apple-touch-180.png?v=n1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070807;--panel:#0d0f0d;--line:rgba(201,162,39,.28);--gold:#C9A227;--text:#e8e4d8;--muted:#a9a598}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font:500 16px/1.55 Manrope,system-ui,sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:760px;margin:0 auto;padding:40px 16px calc(48px + env(safe-area-inset-bottom,0px))}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+.brand svg{width:48px;height:48px;flex:none}
+.brand b{font:700 15px/1 Manrope,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+h1{margin:0 0 12px;font:700 clamp(30px,7vw,46px)/1.1 Fraunces,Georgia,serif;letter-spacing:-.01em}
+.lead{margin:0 0 32px;color:var(--muted);max-width:520px}
+.grid{display:grid;gap:14px}
+@media(min-width:720px){.grid{grid-template-columns:1fr 1fr}.card--wide{grid-column:1/-1}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 20px 18px}
+.card h2{margin:0 0 4px;font:600 21px/1.2 Fraunces,Georgia,serif;color:var(--gold)}
+.card .sub{margin:0 0 14px;color:var(--muted);font-size:14px}
+ol{margin:0;padding:0;list-style:none;counter-reset:s}
+li{counter-increment:s;position:relative;padding:0 0 10px 34px}
+li:last-child{padding-bottom:0}
+li::before{content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;border:1px solid var(--gold);border-radius:50%;color:var(--gold);font:700 12px/20px Manrope,sans-serif;text-align:center}
+b.k{color:#fff;font-weight:700}
+.note{margin:32px 0 0;color:var(--muted);font-size:14px}
+.btn{display:inline-block;margin-top:28px;padding:14px 26px;background:var(--gold);color:var(--bg);border-radius:10px;font:700 15px/1 Manrope,sans-serif;text-decoration:none}
+.btn:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 160 160" aria-hidden="true"><rect width="160" height="160" rx="36" fill="#0d0f0d"/><rect x="2" y="2" width="156" height="156" rx="34" fill="none" stroke="#C9A227" stroke-width="3" opacity=".45"/><path d="M38 120V40L80 100V40M80 100L122 40V120" stroke="#C9A227" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+    <b>NYKISS Gram</b>
+  </div>
+  <h1>Gram как приложение</h1>
+  <p class="lead">Ставится за полминуты, без магазина. Отдельное окно, свой значок, запуск в один клик. Обновляется само.</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Android</h2>
+      <p class="sub">Chrome или Samsung Internet</p>
+      <ol>
+        <li>Откройте Gram в <b class="k">Chrome</b>.</li>
+        <li>Нажмите меню <b class="k">⋮</b> справа вверху.</li>
+        <li>Выберите <b class="k">Установить приложение</b> (или «Добавить на главный экран»).</li>
+        <li>Подтвердите. Значок NYKISS появится среди приложений.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>Windows и Mac</h2>
+      <p class="sub">Chrome или Edge</p>
+      <ol>
+        <li>Откройте Gram в <b class="k">Chrome</b> или <b class="k">Edge</b>.</li>
+        <li>В адресной строке справа нажмите значок установки (монитор со стрелкой).</li>
+        <li>Нажмите <b class="k">Установить</b>.</li>
+        <li>Gram откроется в своём окне. Закрепите его на панели задач или в Dock.</li>
+      </ol>
+      <p class="sub" style="margin:12px 0 0">Значка нет? Меню <b class="k">⋮</b> → «Трансляция, сохранение и общий доступ» → «Установить страницу как приложение».</p>
+    </section>
+
+    <section class="card card--wide">
+      <h2>iPhone и iPad</h2>
+      <p class="sub">Только Safari</p>
+      <ol>
+        <li>Откройте Gram в <b class="k">Safari</b>.</li>
+        <li>Нажмите кнопку <b class="k">Поделиться</b> (квадрат со стрелкой вверх).</li>
+        <li>Выберите <b class="k">На экран «Домой»</b>.</li>
+        <li>Нажмите <b class="k">Добавить</b>.</li>
+      </ol>
+    </section>
+  </div>
+
+  <a class="btn" href="./">Открыть Gram</a>
+  <p class="note">Установка не заменяет вход: аккаунт и ключ остаются такими же. Если приложение не ставится, обновите страницу Gram и попробуйте ещё раз.</p>
+</main>
+</body>
+</html>
