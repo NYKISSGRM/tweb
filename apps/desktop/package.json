@@ -1,0 +1,75 @@
+{
+  "name": "nykiss-gram-desktop",
+  "productName": "NYKISS Gram",
+  "version": "1.0.0",
+  "description": "Desktop wrapper for NYKISS Gram (https://nykissgrm.github.io/tweb/)",
+  "private": true,
+  "main": "main.js",
+  "author": "NYKISS",
+  "license": "GPL-3.0-only",
+  "scripts": {
+    "start": "electron .",
+    "icons": "python3 scripts/make-icons.py",
+    "test": "node test/smoke.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac --arm64 --x64",
+    "dist:mac:dir": "electron-builder --mac dir --arm64",
+    "dist:win": "electron-builder --win --x64",
+    "dist:linux": "electron-builder --linux --x64"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3",
+    "playwright-core": "1.64.1"
+  },
+  "build": {
+    "appId": "io.github.nykissgrm.gram",
+    "productName": "NYKISS Gram",
+    "copyright": "NYKISS",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "build/icon.png"
+    ],
+    "artifactName": "NYKISS-Gram-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "category": "public.app-category.social-networking",
+      "icon": "build/icon.icns",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "target": [
+        {"target": "dmg", "arch": ["arm64", "x64"]},
+        {"target": "zip", "arch": ["arm64", "x64"]}
+      ],
+      "extendInfo": {
+        "NSCameraUsageDescription": "NYKISS Gram uses the camera for video calls and video messages.",
+        "NSMicrophoneUsageDescription": "NYKISS Gram uses the microphone for calls and voice messages."
+      }
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {"target": "nsis", "arch": ["x64"]},
+        {"target": "portable", "arch": ["x64"]}
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "NYKISS-Gram-Setup-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "NYKISS-Gram-Portable-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Network;InstantMessaging",
+      "target": ["AppImage", "deb"]
+    }
+  }
+}
