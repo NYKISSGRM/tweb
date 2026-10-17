@@ -7,6 +7,7 @@
 //   Gram → iframe: {type:'nk:session', access, refresh} · {type:'nk:back'}
 
 import appImManager from '@lib/appImManager';
+import {INTERNAL_LINK_TYPE} from '@lib/internalLink';
 import {getKey, promptConnect} from '@lib/nykiss/quickBubble';
 import {getGramSession, resetGramThrottle, clearGramSession, GramAuthError} from '@lib/nykiss/wcrmAuth';
 
@@ -40,28 +41,41 @@ let frameTimer = 0;
 
 const USERNAME_RE = /^[A-Za-z][A-Za-z0-9_]{3,31}$/;
 
-// Only https://t.me/<username> and tg://resolve?domain=<username>; anything else (invites, bots with start, other schemes) is null.
-function parseTgLink(raw: unknown): string | null {
+// What may be opened from the app: https://t.me/<username>, tg://resolve?domain=<username>, and a channel/group
+// invite (https://t.me/+<hash>, https://t.me/joinchat/<hash>). Anything else (bots with start, other schemes) is null.
+type TgTarget = {userName: string} | {invite: string};
+const INVITE_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+export function parseTgLink(raw: unknown): TgTarget | null {
   if(typeof raw !== 'string' || raw.length > 300) return null;
   let u: URL;
   try { u = new URL(raw); } catch(e) { return null; }
   if(u.protocol === 'https:' && u.hostname === 't.me' && !u.port && !u.username && !u.password) {
+    const invite = u.pathname.match(/^\/(?:\+|joinchat\/)([^/]+)\/?$/);
+    if(invite) return INVITE_RE.test(invite[1]) ? {invite: invite[1]} : null;
     const m = u.pathname.match(/^\/([^/]+)\/?$/);
-    return m && USERNAME_RE.test(m[1]) ? m[1] : null;
+    return m && USERNAME_RE.test(m[1]) ? {userName: m[1]} : null;
   }
   if(u.protocol === 'tg:' && u.hostname === 'resolve') {
     const d = u.searchParams.get('domain');
-    return d && USERNAME_RE.test(d) ? d : null;
+    return d && USERNAME_RE.test(d) ? {userName: d} : null;
   }
   return null;
 }
 
 function openTgLink(raw: unknown) {
-  const userName = parseTgLink(raw);
-  if(!userName) return;
+  const target = parseTgLink(raw);
+  if(!target) return;
   closeNykissWeb();
-  Promise.resolve(appImManager.openUsername({userName})).catch(() => {
-    window.open('https://t.me/' + userName, '_blank', 'noopener');
+  if('invite' in target) {
+    const fallback = () => window.open('https://t.me/+' + target.invite, '_blank', 'noopener');
+    import('@lib/internalLinkProcessor').then(({default: processor}) => {
+      return processor.processInternalLink({_: INTERNAL_LINK_TYPE.JOIN_CHAT, invite: target.invite});
+    }).catch(fallback);
+    return;
+  }
+  Promise.resolve(appImManager.openUsername({userName: target.userName})).catch(() => {
+    window.open('https://t.me/' + target.userName, '_blank', 'noopener');
   });
 }
 
