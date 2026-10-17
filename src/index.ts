@@ -136,7 +136,10 @@ function setViewportHeightListeners() {
   let setViewportVH = false/* , hasFocus = false */;
   let lastVH: number;
   const setVH = () => {
-    let vh = (setViewportVH && !overlayCounter.isOverlayActive ? (w as VisualViewport).height || (w as Window).innerHeight : getAppWindow().innerHeight) * 0.01;
+    // NYKISS: iPhone only, only while typing: follow the visible area so the keyboard does not push the page around
+    const typing = (() => { const el = document.activeElement as HTMLElement | null; return !!el && (el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'); })();
+    const followKeyboard = !setViewportVH && IS_APPLE_MOBILE && IS_TOUCH_SUPPORTED && !!window.visualViewport && typing && !overlayCounter.isOverlayActive;
+    let vh = (followKeyboard ? window.visualViewport.height : setViewportVH && !overlayCounter.isOverlayActive ? (w as VisualViewport).height || (w as Window).innerHeight : getAppWindow().innerHeight) * 0.01;
     vh = +vh.toFixed(2);
     if(lastVH === vh) {
       return;
@@ -170,6 +173,12 @@ function setViewportHeightListeners() {
   };
   bindVH(getAppWindow());
   onAppWindowChange((win) => bindVH(win));
+  if(IS_APPLE_MOBILE && IS_TOUCH_SUPPORTED && window.visualViewport) {
+    window.visualViewport.addEventListener('resize', setVH);
+    window.visualViewport.addEventListener('scroll', () => { if(window.visualViewport.offsetTop > 0) window.scrollTo(0, 0); });
+    document.addEventListener('focusin', () => window.setTimeout(setVH, 50));
+    document.addEventListener('focusout', () => window.setTimeout(setVH, 50));
+  }
 
   if(IS_STICKY_INPUT_BUGGED) {
     const toggleResizeMode = () => {
