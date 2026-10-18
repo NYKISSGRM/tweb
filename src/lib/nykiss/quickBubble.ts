@@ -762,17 +762,71 @@ function initDrag() {
 }
 
 // --- connect flow ---
+// window.prompt / alert do not exist in Electron (and are blocked in some WebViews), so the key is asked in our own dialog.
+function askKey(error?: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(7,8,7,.72)';
+    const box = document.createElement('div');
+    box.style.cssText = 'width:min(420px,100%);box-sizing:border-box;padding:20px;border:1px solid #2a2212;border-radius:14px;background:#15140d;color:#F3EEDF;font:14px/1.4 system-ui,sans-serif';
+    const title = document.createElement('div');
+    title.textContent = 'Ключ NYKISS Gram';
+    title.style.cssText = 'font-size:17px;font-weight:600;margin-bottom:6px';
+    const hint = document.createElement('div');
+    hint.textContent = 'Вставь ключ (Настройки → NYKISS Gram — ключ в мини-аппе).';
+    hint.style.cssText = 'color:#9a927d;margin-bottom:12px';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.style.cssText = 'width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #C9A227;border-radius:10px;background:#070807;color:#F3EEDF;font:inherit;outline:none';
+    const err = document.createElement('div');
+    err.textContent = error || '';
+    err.style.cssText = 'color:#e5532d;margin-top:8px;min-height:0;' + (error ? '' : 'display:none');
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:14px';
+    const mk = (label: string, primary: boolean) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.style.cssText = 'padding:9px 16px;border-radius:10px;font:inherit;cursor:pointer;border:1px solid #C9A227;' +
+        (primary ? 'background:#C9A227;color:#070807;font-weight:600' : 'background:transparent;color:#e9c860');
+      return b;
+    };
+    const cancel = mk('Отмена', false);
+    const ok = mk('Подключить', true);
+    const done = (v: string | null) => { wrap.remove(); resolve(v); };
+    cancel.addEventListener('click', () => done(null));
+    ok.addEventListener('click', () => done(input.value));
+    wrap.addEventListener('pointerdown', (e) => { if(e.target === wrap) done(null); });
+    // keys are typed into the input only: stop tweb's global shortcuts from reacting to them
+    wrap.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if(e.key === 'Enter') done(input.value);
+      else if(e.key === 'Escape') done(null);
+    });
+    row.append(cancel, ok);
+    box.append(title, hint, input, err, row);
+    wrap.append(box);
+    document.body.append(wrap);
+    input.focus();
+  });
+}
+
 export async function promptConnect(): Promise<boolean> {
-  const key = window.prompt('Вставь ключ NYKISS Gram (Настройки → NYKISS Gram — ключ в мини-аппе):');
-  if(!key || !key.trim()) return false;
-  setKey(key.trim());
-  let ok = true;
-  try {
-    await apiFetch('/messenger/whoami');
-  } catch(e) {
-    ok = false;
-    setKey('');
-    window.alert('Ключ не подошёл. Проверь и вставь заново.');
+  let error: string | undefined;
+  let ok = false;
+  while(!ok) {
+    const key = await askKey(error);
+    if(!key || !key.trim()) return false;
+    setKey(key.trim());
+    try {
+      await apiFetch('/messenger/whoami');
+      ok = true;
+    } catch(e) {
+      setKey('');
+      error = 'Ключ не подошёл. Проверь и вставь заново.';
+    }
   }
   // quick bubble not initialised yet (opened from the sidebar before it) → nothing to refresh
   if(menuEl) {
