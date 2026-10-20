@@ -15,13 +15,13 @@ import {
 } from '@stores/folderTags';
 
 /** The row's height in a chat list when its folder tags make it a line taller - see `.has-folder-tags` */
-export const DIALOG_WITH_FOLDER_TAGS_HEIGHT = 82;
+export const DIALOG_WITH_FOLDER_TAGS_HEIGHT = 90;
 
 /**
  * Where the tags line starts and ends in a row of the chat list: the avatar's lane on the start,
  * the row's padding on the end (`.chatlist-chat.row-with-padding`, `.row-big`)
  */
-const DIALOG_FOLDER_TAGS_INSET = 72 + 12;
+const DIALOG_FOLDER_TAGS_INSET = 80 + 12;
 
 const NOTHING_FITTED: ReturnType<typeof fitFolderTags> = {visible: 0, more: 0};
 

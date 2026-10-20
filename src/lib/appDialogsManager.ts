@@ -257,7 +257,7 @@ function getFolderTitleTextColor(active: boolean) {
 const BADGE_SIZE = 22;
 
 export const DIALOG_AVATAR_SIZES: {[k in DialogElementSize]?: number} = {
-  bigger: 54,
+  bigger: 60,
   abitbigger: 42,
   small: 32
 };

@@ -67,9 +67,9 @@ import throttle from '@helpers/schedulers/throttle';
 import {getAppWindow} from '@helpers/appWindow';
 
 // Default and resize range for the left & right columns.
-export const DEFAULT_COLUMN_WIDTH = 360;
+export const DEFAULT_COLUMN_WIDTH = 400;
 export const MIN_SIDEBAR_WIDTH = 320;
-export const MAX_SIDEBAR_WIDTH = 480;
+export const MAX_SIDEBAR_WIDTH = 520;
 export const SIDEBAR_COLLAPSE_FACTOR = 0.65;
 // Width of #column-left when collapsed. Matches --sidebar-collapsed-width in
 // scss/partials/_leftSidebar.scss.
@@ -84,9 +84,9 @@ const FOLDERS_SIDEBAR_OFFSET = FOLDERS_SIDEBAR_WIDTH + FOLDERS_SIDEBAR_GAP;
 // two scopes (see below). The sidebar value collapses to 0 on handheld so
 // #column-left / #column-right fill the screen; the chat keeps 8 so the
 // floating topbar / chat-input plates have breathing room.
-const PAGE_CHATS_PADDING_ROOT_DESKTOP = 16;
+const PAGE_CHATS_PADDING_ROOT_DESKTOP = 0;
 const PAGE_CHATS_PADDING_ROOT_HANDHELD = 0;
-const PAGE_CHATS_PADDING_CHAT_DESKTOP = 16;
+const PAGE_CHATS_PADDING_CHAT_DESKTOP = 0;
 const PAGE_CHATS_PADDING_CHAT_HANDHELD = 8;
 // Used in right-column-fits math (desktop threshold).
 const PAGE_CHATS_PADDING = PAGE_CHATS_PADDING_ROOT_DESKTOP;

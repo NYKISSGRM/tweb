@@ -140,7 +140,7 @@ $row-border-radius: $border-radius-medium;
   }
 
   &-big {
-    min-height: 4.5rem;
+    min-height: 5rem;
     padding-inline: 1rem .75rem;
   }
 
@@ -247,7 +247,7 @@ $row-border-radius: $border-radius-medium;
   }
 
   &-with-padding {
-    padding-inline-start: 4.5rem;
+    padding-inline-start: 5rem;
 
     @include respond-to(handhelds) {
       padding-inline-start: 4rem;
@@ -474,9 +474,9 @@ $row-border-radius: $border-radius-medium;
     }
 
     &-bigger {
-      width: 3.375rem !important;
-      height: 3.375rem !important;
-      inset-inline-start: .5625rem !important; // it's wrong but old chatlist has it
+      width: 3.75rem !important;
+      height: 3.75rem !important;
+      inset-inline-start: .625rem !important; // it's wrong but old chatlist has it
     }
   }
 

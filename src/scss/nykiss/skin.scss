@@ -1,0 +1,64 @@
+// NYKISS Gram — hard "desktop messenger" skin: flat columns, full-width rows, square-ish corners.
+// Geometry lives in the base partials (row 80px / avatar 60px / radii 6-8-10px); this file holds the rest.
+// Descendants of html.night, like theme.scss, so no !important is needed except where the base has one.
+
+html.night {
+  --main-column-border-radius: 0;
+  --column-box-shadow: none;
+  --chat-input-border-radius: 0;
+  --popup-border-radius: 12px;
+  --scrollbar-color: rgba(255, 255, 255, .18);
+
+  // columns butt against each other, a hairline instead of a shadow
+  #column-left {
+    border-inline-end: 1px solid var(--border-color);
+  }
+
+  // chat list: edge-to-edge rows, no rounding, no side gutters
+  ul.chatlist {
+    padding: 0;
+  }
+
+  .chatlist-chat {
+    border-radius: 0;
+
+    .row-title .peer-title {
+      font-weight: 700;
+    }
+
+    .row-subtitle {
+      font-size: var(--font-size-15);
+    }
+  }
+
+  // selected chat: a solid dark-gold fill across the whole row (no side stripe)
+  .chatlist-chat.active {
+    --background: #3a3014 !important;
+    box-shadow: none;
+  }
+
+  &.is-rtl .chatlist-chat.active {
+    box-shadow: none;
+  }
+
+  // chat header: a flat bar instead of a floating plate
+  .chat .topbar {
+    box-shadow: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  // composer: a flat strip with a top hairline
+  .chat .chat-input-wrapper {
+    box-shadow: none;
+    border-top: 1px solid var(--border-color);
+  }
+
+  // thin square scrollbar
+  .scrollable::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollable::-webkit-scrollbar-thumb {
+    border-radius: 2px;
+  }
+}
