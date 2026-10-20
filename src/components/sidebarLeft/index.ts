@@ -775,6 +775,7 @@ export class AppSidebarLeft extends SidebarSlider {
     }, {
       icon: 'colorize',
       regularText: accentText,
+      verify: () => themeController.isNight(),
       onClick: () => {
         accentText.textContent = 'Цвет: ' + cycleAccent();
       }

@@ -1,5 +1,5 @@
 // NYKISS Gram — hard "desktop messenger" skin: flat columns, full-width rows, square-ish corners, cool graphite surfaces,
-// gold only as the brand accent. Geometry lives in the base partials (row 80px / avatar 60px / radii 6-8-10px).
+// gold only as the brand accent. Geometry lives in the base partials (row 60px / avatar 46px / radii 6-8-10px).
 // Descendants of html.night, like theme.scss, so no !important is needed except where the base has one.
 
 html.night {
@@ -37,7 +37,7 @@ html.night {
 
   // selected chat: a solid violet plate across the whole row (no side stripe); the subtitle stays readable
   .chatlist-chat.active {
-    --background: #36304f !important;
+    --background: color-mix(in srgb, var(--nk-accent) 26%, #1a1922) !important;
     box-shadow: none;
 
     .row-subtitle {

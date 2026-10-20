@@ -1,7 +1,7 @@
 // NYKISS Gram — «Ночная касса»: gold is an accent, not a fill.
 // One file, plain overrides on descendants of html.night (themeController writes the palette inline on <html>,
 // so descendants are the only place that wins without !important). Included last from style.scss.
-// Palette: felt #070807, surface #15140d, gold #C9A227 / #E2C25A, bronze #2e2848, text #F3EEDF.
+// Palette: graphite-violet #0e0d13 / #131219 / #1a1922, accent from data-nk-accent (gold by default), text #ECEAF3.
 
 html.night {
   --nk-accent: #c9a227;
@@ -50,9 +50,6 @@ html.night {
     }
   }
 
-  &.is-rtl .chatlist-chat.active {
-    box-shadow: inset -2px 0 0 var(--nk-accent);
-  }
 
   // the wallpaper photo stays, but sits much deeper so text and bubbles win (injected style comes later: more specific selector)
   .nykiss-chat-wallpaper {
@@ -71,31 +68,38 @@ html.night {
 
 // accent sets, picked by `data-nk-accent` on <html> (see lib/nykiss/accent.ts); gold is the default above
 html.night[data-nk-accent="violet"] {
+  --nk-accent-plain: 135, 116, 225;
   --nk-accent: #8774e1;
   --nk-accent-hi: #b7a6ff;
   --nk-accent-rgb: 183, 166, 255;
 }
 
 html.night[data-nk-accent="blue"] {
+  --nk-accent-plain: 62, 139, 255;
   --nk-accent: #3e8bff;
   --nk-accent-hi: #8fbfff;
   --nk-accent-rgb: 143, 191, 255;
 }
 
 html.night[data-nk-accent="green"] {
+  --nk-accent-plain: 47, 181, 116;
   --nk-accent: #2fb574;
   --nk-accent-hi: #7fe0ae;
   --nk-accent-rgb: 127, 224, 174;
 }
 
 html.night[data-nk-accent="red"] {
+  --nk-accent-plain: 229, 72, 77;
   --nk-accent: #e5484d;
   --nk-accent-hi: #ff9a9d;
   --nk-accent-rgb: 255, 154, 157;
 }
 
 // the base palette sets these on <html>; the body (and everything inside) takes the chosen accent instead
-html.night body {
+html.night[data-nk-accent]:not([data-nk-accent="gold"]) body {
+  --primary-color-rgb: var(--nk-accent-plain);
+  --light-primary-color: rgba(var(--nk-accent-plain), .08);
+  --primary-button-color: var(--nk-accent);
   --primary-color: var(--nk-accent);
   --link-color: var(--nk-accent-hi);
   --saved-color: var(--nk-accent);
