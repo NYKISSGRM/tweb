@@ -157,6 +157,19 @@ namespace I18n {
     ]).then(([langPack]) => langPack);
   }
 
+  // NYKISS: the whole team works in Russian, so every browser gets the Russian pack once. The flag is set only after
+  // it applied, so a failed attempt retries on the next load, and a language picked later by the user is kept.
+  const NK_LANG_FLAG = 'nk_lang_ru_v1';
+  function switchToRussianOnce(currentCode: string) {
+    setTimeout(async() => {
+      try {
+        if(localStorage.getItem(NK_LANG_FLAG)) return;
+        if(currentCode !== 'ru') await getLangPackAndApply('ru', true);
+        localStorage.setItem(NK_LANG_FLAG, '1');
+      } catch{}
+    }, 0);
+  }
+
   export function getCacheLangPackAndApply() {
     return cacheLangPackPromise ||= getCacheLangPack(true).then(async(langPack) => {
       if(!langPack) {
@@ -166,6 +179,7 @@ namespace I18n {
 
       setLangCode(langPack.lang_code);
       applyLangPack(langPack);
+      switchToRussianOnce(langPack.lang_code);
       return langPack;
     }).finally(() => {
       cacheLangPackPromise = undefined;

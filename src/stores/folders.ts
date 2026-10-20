@@ -45,7 +45,8 @@ async function getFolderItemsInOrder(folderItems: StoredFolder[], managers: AppM
   }
 
   return folderItems.sort((a, b) => {
-    if(!a.id || !b.id) return 0;
+    if(a.id === FOLDER_ID_ALL) return b.id === FOLDER_ID_ALL ? 0 : -1;
+    if(b.id === FOLDER_ID_ALL) return 1;
     return filters.get(a.id)?.localId - filters.get(b.id)?.localId;
   });
 }
@@ -140,6 +141,9 @@ const useFoldersStore = createRoot(() => {
     const items = [...folderItems];
 
     items.sort((a, b) => {
+      if(a.id === FOLDER_ID_ALL) return b.id === FOLDER_ID_ALL ? 0 : -1;
+      if(b.id === FOLDER_ID_ALL) return 1;
+
       const aIndex = order.indexOf(a.id);
       const bIndex = order.indexOf(b.id);
 
