@@ -210,6 +210,18 @@ const STATE_STEPS = {
       });
     }
 
+    // NYKISS: the vertical folders rail becomes the default look. Runs once per browser, so a user
+    // who switches the rail off afterwards keeps it off.
+    try {
+      if(writer.state.settings && !localStorage.getItem('nk_rail_v1')) {
+        localStorage.setItem('nk_rail_v1', '1');
+        if(!writer.state.settings.tabsInSidebar) {
+          writer.state.settings.tabsInSidebar = true;
+          migrated = true;
+        }
+      }
+    } catch{}
+
     if(migrated) {
       writer.push('settings', writer.state.settings);
     }

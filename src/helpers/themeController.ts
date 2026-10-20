@@ -131,19 +131,19 @@ const colorMap: {
     // (gold), these are the base surface/bg/text the whole shell inherits.
     'primary-color': '#C9A227',
     'message-out-primary-color': '#C9A227',
-    'message-background-color': '#19170f',
-    'surface-color': '#15140d',
+    'message-background-color': '#232230',
+    'surface-color': '#1a1922',
     'danger-color': '#ff595a',
-    'primary-text-color': '#F3EEDF',
-    'secondary-text-color': '#9a927d',
+    'primary-text-color': '#ECEAF3',
+    'secondary-text-color': '#8e8a9e',
     'saved-color': '#C9A227',
     'green-color': '#32a271',
-    'background-color': '#0b0c0a',
-    'body-background-color': '#070807',
-    'border-color': '#241f12',
-    'secondary-color': '#6b6555',
+    'background-color': '#131219',
+    'body-background-color': '#0e0d13',
+    'border-color': '#26242f',
+    'secondary-color': '#625f73',
     'link-color': '#C9A227',
-    'input-search-background-color': '#14140e'
+    'input-search-background-color': '#22212c'
   },
   tinted: {
     // base colors ported from Telegram-Android darkblue.attheme (Dark Blue / Tinted)

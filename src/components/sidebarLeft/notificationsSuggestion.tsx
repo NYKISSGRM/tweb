@@ -47,7 +47,7 @@ export default function createNotificationsSuggestion(): PendingSuggestionContro
   const [appSettings] = useAppSettings();
 
   return {
-    available: () => IS_NOTIFICATION_SUPPORTED &&
+    available: () => false && IS_NOTIFICATION_SUPPORTED &&
       !appSettings.notifications.suggested &&
       Notification.permission !== 'granted',
     component: NotificationsSuggestion

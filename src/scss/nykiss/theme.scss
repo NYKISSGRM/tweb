@@ -1,18 +1,18 @@
 // NYKISS Gram — «Ночная касса»: gold is an accent, not a fill.
 // One file, plain overrides on descendants of html.night (themeController writes the palette inline on <html>,
 // so descendants are the only place that wins without !important). Included last from style.scss.
-// Palette: felt #070807, surface #15140d, gold #C9A227 / #E2C25A, bronze #2a2410, text #F3EEDF.
+// Palette: felt #070807, surface #15140d, gold #C9A227 / #E2C25A, bronze #2e2848, text #F3EEDF.
 
 html.night {
-  --badge-text-color: #070807;
+  --badge-text-color: #0e0d13;
 
   // outgoing bubbles: dark amber with warm text instead of a solid gold slab
   .chat .bubble.is-out {
-    --message-background-color: #2a2410;
-    --light-message-background-color: #2a2410;
-    --light-filled-message-background-color: #2a2410;
-    --dark-message-background-color: #2a2410;
-    --message-icon-text-color: #2a2410;
+    --message-background-color: #2e2848;
+    --light-message-background-color: #2e2848;
+    --light-filled-message-background-color: #2e2848;
+    --dark-message-background-color: #2e2848;
+    --message-icon-text-color: #2e2848;
     --message-primary-color: #e2c25a;
     --message-primary-color-rgb: 226, 194, 90;
     --peer-color-rgb: 226, 194, 90;
@@ -28,7 +28,7 @@ html.night {
 
   // incoming bubbles a step lighter than the surface, time quieter
   .chat .bubble:not(.is-out) {
-    --message-time-color: #7d7664;
+    --message-time-color: #8a869b;
   }
 
   // selected chat in the list: a plate with a gold edge, not a gold fill (text stays light on a dark plate)
@@ -56,7 +56,7 @@ html.night {
   }
 
   .nykiss-chat-wallpaper::after {
-    background: linear-gradient(180deg, rgba(7, 8, 6, .62), rgba(5, 5, 4, .8));
+    background: linear-gradient(180deg, rgba(14, 13, 19, .7), rgba(10, 9, 14, .86));
   }
 
   // calmer message highlight (was olive green)
