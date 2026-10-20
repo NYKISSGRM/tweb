@@ -7,6 +7,7 @@ html.night {
   --nk-accent: #c9a227;
   --nk-accent-hi: #e2c25a;
   --nk-accent-rgb: 226, 194, 90;
+  --nk-plate: #36304f;
 
   --badge-text-color: #0e0d13;
 
@@ -68,6 +69,7 @@ html.night {
 
 // accent sets, picked by `data-nk-accent` on <html> (see lib/nykiss/accent.ts); gold is the default above
 html.night[data-nk-accent="violet"] {
+  --nk-plate: #3b3463;
   --nk-accent-plain: 135, 116, 225;
   --nk-accent: #8774e1;
   --nk-accent-hi: #b7a6ff;
@@ -75,6 +77,7 @@ html.night[data-nk-accent="violet"] {
 }
 
 html.night[data-nk-accent="blue"] {
+  --nk-plate: #243a5e;
   --nk-accent-plain: 62, 139, 255;
   --nk-accent: #3e8bff;
   --nk-accent-hi: #8fbfff;
@@ -82,6 +85,7 @@ html.night[data-nk-accent="blue"] {
 }
 
 html.night[data-nk-accent="green"] {
+  --nk-plate: #1f4a3b;
   --nk-accent-plain: 47, 181, 116;
   --nk-accent: #2fb574;
   --nk-accent-hi: #7fe0ae;
@@ -89,6 +93,7 @@ html.night[data-nk-accent="green"] {
 }
 
 html.night[data-nk-accent="red"] {
+  --nk-plate: #55272b;
   --nk-accent-plain: 229, 72, 77;
   --nk-accent: #e5484d;
   --nk-accent-hi: #ff9a9d;

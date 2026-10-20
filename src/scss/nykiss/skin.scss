@@ -37,7 +37,7 @@ html.night {
 
   // selected chat: a solid violet plate across the whole row (no side stripe); the subtitle stays readable
   .chatlist-chat.active {
-    --background: color-mix(in srgb, var(--nk-accent) 26%, #1a1922) !important;
+    --background: var(--nk-plate) !important;
     box-shadow: none;
 
     .row-subtitle {
@@ -111,5 +111,69 @@ html.night {
 
   .sidebar-left-section .row {
     border-radius: 8px;
+  }
+}
+
+// folders as a column on the left: opt-in from the menu (data-nk-rail on <html>), wide screens only
+@media (min-width: 926px) {
+  html.night[data-nk-rail] {
+    --nk-rail-w: 4.75rem;
+
+    .connection-status-bottom {
+      position: relative;
+    }
+
+    // the strip leaves the overlay's flow, so the list's top padding no longer counts it
+    .folders-tabs-scrollable {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inline-size: var(--nk-rail-w);
+      margin: 0;
+      z-index: 4;
+      box-shadow: 1px 0 0 var(--border-color);
+      background: var(--background-color);
+    }
+
+    .folders-tabs-gradient {
+      display: none;
+    }
+
+    #folders-container {
+      margin-inline-start: var(--nk-rail-w);
+    }
+
+    #folders-tabs {
+      flex-direction: column;
+      align-items: stretch;
+      inline-size: 100%;
+      padding-block: .5rem;
+      padding-inline: 0;
+
+      .menu-horizontal-div-item {
+        flex-direction: column;
+        justify-content: center;
+        gap: .25rem;
+        block-size: auto;
+        padding: .625rem .25rem;
+        font-size: .6875rem;
+        position: relative;
+
+        .menu-horizontal-div-item-background {
+          display: none;
+        }
+
+        .badge {
+          position: absolute;
+          inset-block-start: .25rem;
+          inset-inline-end: .5rem;
+        }
+
+        &.active {
+          box-shadow: inset 2px 0 0 var(--nk-accent);
+          background: rgba(var(--nk-accent-rgb), .1);
+        }
+      }
+    }
   }
 }

@@ -1,4 +1,4 @@
-import {ACCENTS, cycleAccent, getAccent} from '@lib/nykiss/accent';
+import {ACCENTS, cycleAccent, getAccent, isRail, toggleRail} from '@lib/nykiss/accent';
 import {createEffect, createRoot, createSignal, on} from 'solid-js';
 import appImManager from '@lib/appImManager';
 import rootScope from '@lib/rootScope';
@@ -720,6 +720,9 @@ export class AppSidebarLeft extends SidebarSlider {
       createSubmenu: () => this.createNewChatsSubmenu()
     });
 
+    const railText = document.createElement('span');
+    railText.textContent = 'Папки: ' + (isRail() ? 'слева' : 'сверху');
+
     const accentText = document.createElement('span');
     accentText.textContent = 'Цвет: ' + (ACCENTS.find((a) => a.id === getAccent())?.title || '');
 
@@ -771,6 +774,12 @@ export class AppSidebarLeft extends SidebarSlider {
         closeTabsBefore(() => {
           openNykissWeb();
         });
+      }
+    }, {
+      icon: 'folder',
+      regularText: railText,
+      onClick: () => {
+        railText.textContent = 'Папки: ' + (toggleRail() ? 'слева' : 'сверху');
       }
     }, {
       icon: 'colorize',

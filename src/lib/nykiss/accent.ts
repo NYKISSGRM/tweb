@@ -36,4 +36,30 @@ export function cycleAccent(): string {
   return next.title;
 }
 
+const RAIL_KEY = 'nk_rail';
+
+export function isRail(): boolean {
+  try {
+    return localStorage.getItem(RAIL_KEY) === '1';
+  } catch{
+    return false;
+  }
+}
+
+export function applyRail(on: boolean = isRail()) {
+  document.documentElement.toggleAttribute('data-nk-rail', on);
+}
+
+/** Folders as a column on the left (wide screens only) or as tabs on top. Returns the new state. */
+export function toggleRail(): boolean {
+  const on = !isRail();
+  try {
+    localStorage.setItem(RAIL_KEY, on ? '1' : '0');
+  } catch{}
+
+  applyRail(on);
+  return on;
+}
+
 applyAccent();
+applyRail();
