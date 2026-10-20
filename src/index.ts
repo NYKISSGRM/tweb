@@ -4,6 +4,7 @@
 // every DOM timer for worker-driven ones (hidden tabs throttle/freeze timers)
 // and spoofs visibility, the second swaps requestAnimationFrame for a timer so
 // a non-painting tab still boots
+import '@lib/nykiss/accent';
 import '@helpers/dom/previewUnfreeze';
 import '@helpers/dom/previewRaf';
 import App from '@config/app';
@@ -519,7 +520,7 @@ if(import.meta.env.DEV) {
 
   const langPack = await I18n.getCacheLangPackAndApply();
   console.timeLog(TIME_LABEL, 'await I18n.getCacheLangPack()');
-  const [appSettings] = useAppSettings();
+  const [appSettings, setAppSettings] = useAppSettings();
   I18n.setTimeFormat(appSettings.timeFormat);
   onLanguageApply();
   rootScope.addEventListener('language_apply', onLanguageApply);
@@ -535,7 +536,19 @@ if(import.meta.env.DEV) {
   console.timeLog(TIME_LABEL, 'sent all states (2)');
 
   const [, setHasFoldersSidebar] = useHasFoldersSidebar();
-  setHasFoldersSidebar(!!appSettings.tabsInSidebar);
+  // NYKISS: the vertical folders rail is the default look; switched on once per browser, so a later opt-out sticks
+  let railOn = !!appSettings.tabsInSidebar;
+  try {
+    if(!localStorage.getItem('nk_rail_v1')) {
+      localStorage.setItem('nk_rail_v1', '1');
+      if(!railOn) {
+        railOn = true;
+        setAppSettings('tabsInSidebar', true);
+      }
+    }
+  } catch{}
+
+  setHasFoldersSidebar(railOn);
 
   rootScope.managers.rootScope.getPremium().then((isPremium) => {
     rootScope.premium = isPremium;

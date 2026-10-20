@@ -19,6 +19,15 @@
   padding-block: 16px;
   padding-inline: 9px 16px;
 
+  &.size60 {
+    height: 60px;
+
+    .Avatar {
+      width: 46px;
+      height: 46px;
+    }
+  }
+
   &.size80 {
     height: 80px;
 

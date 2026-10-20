@@ -4,6 +4,10 @@
 // Palette: felt #070807, surface #15140d, gold #C9A227 / #E2C25A, bronze #2e2848, text #F3EEDF.
 
 html.night {
+  --nk-accent: #c9a227;
+  --nk-accent-hi: #e2c25a;
+  --nk-accent-rgb: 226, 194, 90;
+
   --badge-text-color: #0e0d13;
 
   // outgoing bubbles: dark amber with warm text instead of a solid gold slab
@@ -13,13 +17,13 @@ html.night {
     --light-filled-message-background-color: #2e2848;
     --dark-message-background-color: #2e2848;
     --message-icon-text-color: #2e2848;
-    --message-primary-color: #e2c25a;
-    --message-primary-color-rgb: 226, 194, 90;
-    --peer-color-rgb: 226, 194, 90;
-    --link-color: #e2c25a;
-    --message-status-color: #e2c25a;
+    --message-primary-color: var(--nk-accent-hi);
+    --message-primary-color-rgb: var(--nk-accent-rgb);
+    --peer-color-rgb: var(--nk-accent-rgb);
+    --link-color: var(--nk-accent-hi);
+    --message-status-color: var(--nk-accent-hi);
     --message-time-color: rgba(243, 238, 223, .55);
-    --selection-background-color: rgba(226, 194, 90, .28);
+    --selection-background-color: rgba(var(--nk-accent-rgb), .28);
 
     .bubble-content {
       color: var(--primary-text-color);
@@ -33,21 +37,21 @@ html.night {
 
   // selected chat in the list: a plate with a gold edge, not a gold fill (text stays light on a dark plate)
   .chatlist-chat.active {
-    --background: rgba(201, 162, 39, .12) !important;
-    box-shadow: inset 2px 0 0 #c9a227;
+    --background: rgba(var(--nk-accent-rgb), .12) !important;
+    box-shadow: inset 2px 0 0 var(--nk-accent);
 
     .avatar-stories-svg-circle {
-      stroke: #e2c25a !important;
+      stroke: var(--nk-accent-hi) !important;
     }
 
     .badge-fake {
-      color: #e2c25a;
-      border-color: #e2c25a;
+      color: var(--nk-accent-hi);
+      border-color: var(--nk-accent-hi);
     }
   }
 
   &.is-rtl .chatlist-chat.active {
-    box-shadow: inset -2px 0 0 #c9a227;
+    box-shadow: inset -2px 0 0 var(--nk-accent);
   }
 
   // the wallpaper photo stays, but sits much deeper so text and bubbles win (injected style comes later: more specific selector)
@@ -61,6 +65,39 @@ html.night {
 
   // calmer message highlight (was olive green)
   .chat {
-    --message-highlighting-color: rgba(226, 194, 90, .22);
+    --message-highlighting-color: rgba(var(--nk-accent-rgb), .22);
   }
+}
+
+// accent sets, picked by `data-nk-accent` on <html> (see lib/nykiss/accent.ts); gold is the default above
+html.night[data-nk-accent="violet"] {
+  --nk-accent: #8774e1;
+  --nk-accent-hi: #b7a6ff;
+  --nk-accent-rgb: 183, 166, 255;
+}
+
+html.night[data-nk-accent="blue"] {
+  --nk-accent: #3e8bff;
+  --nk-accent-hi: #8fbfff;
+  --nk-accent-rgb: 143, 191, 255;
+}
+
+html.night[data-nk-accent="green"] {
+  --nk-accent: #2fb574;
+  --nk-accent-hi: #7fe0ae;
+  --nk-accent-rgb: 127, 224, 174;
+}
+
+html.night[data-nk-accent="red"] {
+  --nk-accent: #e5484d;
+  --nk-accent-hi: #ff9a9d;
+  --nk-accent-rgb: 255, 154, 157;
+}
+
+// the base palette sets these on <html>; the body (and everything inside) takes the chosen accent instead
+html.night body {
+  --primary-color: var(--nk-accent);
+  --link-color: var(--nk-accent-hi);
+  --saved-color: var(--nk-accent);
+  --message-out-primary-color: var(--nk-accent);
 }

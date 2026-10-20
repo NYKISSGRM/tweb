@@ -132,7 +132,7 @@ ul.chatlist {
     // * the message. The avatar stays where it is in any other row, at the top, as on Desktop - and
     // * with it everything that sits on its corners
     &.has-folder-tags {
-      min-height: 5.625rem;
+      min-height: 4.375rem;
 
       .dialog-avatar {
         top: .5625rem;

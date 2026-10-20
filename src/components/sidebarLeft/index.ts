@@ -1,3 +1,4 @@
+import {ACCENTS, cycleAccent, getAccent} from '@lib/nykiss/accent';
 import {createEffect, createRoot, createSignal, on} from 'solid-js';
 import appImManager from '@lib/appImManager';
 import rootScope from '@lib/rootScope';
@@ -714,11 +715,13 @@ export class AppSidebarLeft extends SidebarSlider {
       options: {
         text: 'CreateANew',
         icon: 'edit',
-        verify: () => this.isCollapsed(),
         separator: true
       },
       createSubmenu: () => this.createNewChatsSubmenu()
     });
+
+    const accentText = document.createElement('span');
+    accentText.textContent = 'Цвет: ' + (ACCENTS.find((a) => a.id === getAccent())?.title || '');
 
     const menuButtons: (ButtonMenuItemOptions & {verify?: () => boolean | Promise<boolean>})[] = [{
       icon: 'plus',
@@ -768,6 +771,12 @@ export class AppSidebarLeft extends SidebarSlider {
         closeTabsBefore(() => {
           openNykissWeb();
         });
+      }
+    }, {
+      icon: 'colorize',
+      regularText: accentText,
+      onClick: () => {
+        accentText.textContent = 'Цвет: ' + cycleAccent();
       }
     }, {
       id: 'settings',
