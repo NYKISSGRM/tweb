@@ -545,7 +545,7 @@ export const SETTINGS_INIT: StateSettings = {
   },
   savedAsForum: false,
   notifyAllAccounts: true,
-  tabsInSidebar: true,
+  tabsInSidebar: false,
   settingsSearchRecent: [],
   playbackParams: {
     volume: 1,

@@ -76,8 +76,8 @@ export const SIDEBAR_COLLAPSE_FACTOR = 0.65;
 export const SIDEBAR_COLLAPSED_WIDTH = 80;
 // Folders sidebar geometry. Owned by JS — written to `--folders-sidebar-width`
 // and `--folders-sidebar-offset` so SCSS only consumes the vars.
-const FOLDERS_SIDEBAR_WIDTH = 84;
-const FOLDERS_SIDEBAR_GAP = 0;
+const FOLDERS_SIDEBAR_WIDTH = 72;
+const FOLDERS_SIDEBAR_GAP = 8;
 const FOLDERS_SIDEBAR_OFFSET = FOLDERS_SIDEBAR_WIDTH + FOLDERS_SIDEBAR_GAP;
 
 // Outer page padding values, written into `--page-chats-padding` by JS in

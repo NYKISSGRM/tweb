@@ -536,14 +536,14 @@ if(import.meta.env.DEV) {
   console.timeLog(TIME_LABEL, 'sent all states (2)');
 
   const [, setHasFoldersSidebar] = useHasFoldersSidebar();
-  // NYKISS: the vertical folders rail is the default look; switched on once per browser, so a later opt-out sticks
+  // NYKISS: the rail was switched on by mistake in an earlier build; switch it off once, a later opt-in sticks
   let railOn = !!appSettings.tabsInSidebar;
   try {
-    if(!localStorage.getItem('nk_rail_v1')) {
-      localStorage.setItem('nk_rail_v1', '1');
-      if(!railOn) {
-        railOn = true;
-        setAppSettings('tabsInSidebar', true);
+    if(!localStorage.getItem('nk_rail_v2')) {
+      localStorage.setItem('nk_rail_v2', '1');
+      if(railOn) {
+        railOn = false;
+        setAppSettings('tabsInSidebar', false);
       }
     }
   } catch{}

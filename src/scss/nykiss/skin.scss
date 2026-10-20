@@ -6,7 +6,6 @@ html.night {
   --main-column-border-radius: 0;
   --column-box-shadow: none;
   --chat-input-border-radius: 0;
-  --chat-input-max-width: none;
   --scrollbar-color: rgba(255, 255, 255, .18);
 
   // columns butt against each other, a hairline instead of a shadow
@@ -51,27 +50,9 @@ html.night {
     display: none;
   }
 
-  // vertical folders rail: a flat dark column instead of a floating glass panel
-  .folders-sidebar {
-    --folders-sidebar-item-color: #8e8a9e;
-    --folders-sidebar-item-selected-color: #eceaf3;
-    --folders-sidebar-background: #0e0d13;
-    border-radius: 0;
-    inset-block: 0;
-    inset-inline-start: 0;
-    border-inline-end: 1px solid var(--border-color);
-
-    &__background-gradient {
-      display: none;
-    }
-  }
-
   // chat header: a flat full-width bar instead of a floating plate
   .chat {
-    --chat-topbar-height: 3.5rem;
-
     .topbar {
-      max-width: none;
       border-radius: 0;
       box-shadow: none;
       border-block-end: 1px solid var(--border-color);
@@ -83,10 +64,6 @@ html.night {
     }
 
     // composer: a flat strip across the whole column with a top hairline
-    .chat-input-container {
-      max-width: none;
-    }
-
     .chat-input-wrapper {
       box-shadow: none;
       border-block-start: 1px solid var(--border-color);
