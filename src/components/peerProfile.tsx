@@ -5,7 +5,7 @@ import Section from '@components/section';
 import getLinkedCommunityId from '@appManagers/utils/communities/getLinkedCommunityId';
 import numberThousandSplitter from '@helpers/number/numberThousandSplitter';
 import {useChat, usePeer} from '@stores/peers';
-import {BusinessWorkHours, Chat, ChatFull, GeoPoint, HelpTimezonesList, Photo, StoryItem, Document, MessageMedia, Timezone, User, UserFull, UserStatus} from '@layer';
+import {BusinessWorkHours, Chat, ChatFull, GeoPoint, HelpTimezonesList, Photo, StoryItem, Document, MessageMedia, Timezone, User, UserFull, UserProfilePhoto, UserStatus} from '@layer';
 import getAudioTitles from '@appManagers/utils/docs/getAudioTitles';
 import {useFullPeer} from '@stores/fullPeers';
 import {useHotReloadGuard} from '@lib/solidjs/hotReloadGuard';
@@ -17,6 +17,7 @@ import classNames from '@helpers/string/classNames';
 import Row from '@components/rowTsx';
 import NykissEarnings from '@components/nykissEarnings';
 import NykissColleague from '@components/nykissColleague';
+import NykissTechInfo from '@components/nykissTechInfo';
 import formatUserPhone from '@components/wrappers/formatUserPhone';
 import {copyTextToClipboard} from '@helpers/clipboard';
 import {copyPhoneNumber, copyUsername} from '@helpers/copyContact';
@@ -1695,6 +1696,13 @@ PeerProfile.MainSection = () => {
         </Show>
         <PeerProfile.Location />
         <PeerProfile.Bio />
+        <Show when={context.peerId.isUser() && context.peerId !== rootScope.myId}>
+          <NykissTechInfo
+            peerId={context.peerId}
+            dcId={((context.peer as User.user)?.photo as UserProfilePhoto.userProfilePhoto)?.dc_id}
+            commonChats={(context.fullPeer as UserFull.userFull)?.common_chats_count}
+          />
+        </Show>
         <PeerProfile.Link />
         <PeerProfile.Birthday />
         <PeerProfile.ContactNote />

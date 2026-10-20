@@ -111,4 +111,28 @@ html.night {
   .scrollable::-webkit-scrollbar-thumb {
     border-radius: 2px;
   }
+
+  // menus (hamburger, context): denser solid panel, muted icons, gold only on hover
+  .btn-menu {
+    --icon-size: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .55);
+
+    .btn-menu-item {
+      font-weight: 600;
+
+      .btn-menu-item-icon {
+        color: var(--secondary-text-color);
+      }
+
+      &:hover .btn-menu-item-icon {
+        color: #e2c25a;
+      }
+    }
+  }
+
+  .sidebar-left-section .row {
+    border-radius: 8px;
+  }
 }
