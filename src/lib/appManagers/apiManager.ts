@@ -655,8 +655,16 @@ export class ApiManager extends ApiManagerMethods {
         error = makeError(undefined, error);
       }
 
+      // NYKISS: tell the main thread WHY Telegram ended the session (only the error code and type), before logging out
+      const reportSessionLost = () => {
+        try {
+          this.rootScope.dispatchEvent('nykiss_session_lost', {type: String(error.type || ''), code: Number(error.code) || 0});
+        } catch{}
+      };
+
       if((error.code === 401 && error.type === 'SESSION_REVOKED') ||
         (error.code === 406 && error.type === 'AUTH_KEY_DUPLICATED')) {
+        reportSessionLost();
         this.logOut();
       }
 
@@ -673,6 +681,7 @@ export class ApiManager extends ApiManagerMethods {
         setTimeout(() => {
           if(!error.handled) {
             if(error.code === 401) {
+              reportSessionLost();
               this.logOut();
             } else {
               // ErrorService.show({error: error}); // WARNING

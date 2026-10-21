@@ -718,5 +718,7 @@ if(import.meta.env.DEV) {
     import('./lib/nykiss/team').then(({initTeam}) => initTeam());
     // NYKISS: count the new private dialogs of the day and report them to the CRM.
     import('./lib/nykiss/dayStats').then(({initDayStats}) => initDayStats());
+    // NYKISS: report why Telegram ended a session, if it does.
+    import('./lib/nykiss/sessionWatch').then(({initSessionWatch}) => initSessionWatch());
   }
 });

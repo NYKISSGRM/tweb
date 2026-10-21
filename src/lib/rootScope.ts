@@ -213,6 +213,7 @@ export type BroadcastEvents = {
   'service_notification': Update.updateServiceNotification,
 
   'logging_out': {accountNumber?: ActiveAccountNumber, migrateTo?: ActiveAccountNumber},
+  'nykiss_session_lost': {type: string, code: number},
 
   'payment_sent': {peerId: PeerId, mid: number, receiptMessage: Message.messageService},
 
