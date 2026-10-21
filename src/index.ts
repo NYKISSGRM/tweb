@@ -716,5 +716,7 @@ if(import.meta.env.DEV) {
     import('./lib/nykiss/quickBubble').then(({initQuickBubble}) => initQuickBubble());
     // NYKISS: team badges on colleagues' avatars + «Профиль NYKISS» menu entry.
     import('./lib/nykiss/team').then(({initTeam}) => initTeam());
+    // NYKISS: count the new private dialogs of the day and report them to the CRM.
+    import('./lib/nykiss/dayStats').then(({initDayStats}) => initDayStats());
   }
 });

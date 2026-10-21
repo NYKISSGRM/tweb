@@ -408,7 +408,7 @@ export async function fetchTimeout(url: string, init: RequestInit = {}): Promise
 }
 
 // Errors carry a short code in `message`: bad-key · network · http-<status>
-async function apiFetch(path: string, opts: RequestInit = {}): Promise<any> {
+export async function apiFetch(path: string, opts: RequestInit = {}): Promise<any> {
   const headers: Record<string, string> = {'X-NYKISS-Key': getKey()};
   if(opts.body) headers['Content-Type'] = 'application/json';
   const res = await fetchTimeout(API + path, {...opts, headers: {...headers, ...(opts.headers as any)}});
@@ -710,10 +710,40 @@ function readPos(): {x: number, y: number} | null {
   }
 }
 
+// the open emoji/sticker panel grows up from the composer: the button must stay above its top edge, not over the stickers
+function emojiPanelTop(): number {
+  const panel = document.querySelector<HTMLElement>('.emoji-dropdown.active');
+  const r = panel && panel.offsetParent !== null ? panel.getBoundingClientRect() : null;
+  return r && r.height > 0 ? r.top : Infinity;
+}
+
+function syncPanelClearance() {
+  if(!rootEl) return;
+  if(wantPos) {
+    applyPos(wantPos.x, wantPos.y);
+    return;
+  }
+  const lift = window.innerHeight - emojiPanelTop() + 12;
+  rootEl.style.bottom = lift > 104 ? lift + 'px' : '';
+}
+
+function watchEmojiPanel() {
+  let timer = 0;
+  const run = () => {
+    syncPanelClearance();
+    window.clearTimeout(timer);
+    timer = window.setTimeout(syncPanelClearance, 400); // the panel animates open: measure again once it has settled
+  };
+  new MutationObserver((records) => {
+    if(records.some((r) => (r.target as HTMLElement).classList?.contains('emoji-dropdown'))) run();
+  }).observe(document.body, {subtree: true, attributes: true, attributeFilter: ['class']});
+  window.addEventListener('resize', run);
+}
+
 function applyPos(x: number, y: number) {
   const cx = Math.min(Math.max(EDGE, x), window.innerWidth - FAB_SIZE - EDGE);
   const bar = Array.from(document.querySelectorAll<HTMLElement>('.chat-input')).find((el) => el.offsetParent !== null);
-  const floor = Math.min(window.innerHeight, bar ? bar.getBoundingClientRect().top : window.innerHeight);
+  const floor = Math.min(window.innerHeight, bar ? bar.getBoundingClientRect().top : window.innerHeight, emojiPanelTop() - 12);
   const cy = Math.min(Math.max(EDGE, y), Math.max(EDGE, floor - FAB_SIZE - EDGE));
   rootEl.style.left = cx + 'px';
   rootEl.style.top = cy + 'px';
@@ -1188,6 +1218,7 @@ export function initQuickBubble() {
   rootEl.append(chipEl, menuEl, fabEl);
   document.body.append(rootEl);
   initDrag();
+  watchEmojiPanel();
   chipEl.addEventListener('click', (e) => { e.stopPropagation(); chipDismissedFor = String(currentPeerId); chipEl.classList.add('is-dismissed'); });
 
   document.addEventListener('click', (e) => { if(!rootEl.contains(e.target as Node)) closeMenu(); });
