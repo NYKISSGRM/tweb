@@ -1230,6 +1230,15 @@ export function initQuickBubble() {
 
   sync();
   watchAvatars();
+  // no key yet: try to get it from Telegram's signature instead of asking the worker to type it
+  window.setTimeout(() => {
+    if(getKey()) return;
+    import('@lib/nykiss/autoKey').then(({tryAutoKey}) => tryAutoKey()).then((ok) => {
+      if(!ok) return;
+      sync();
+      refreshHeat();
+    });
+  }, 3000);
   window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
   window.setInterval(() => { if(!document.hidden) refreshHeat(); }, 60000);
