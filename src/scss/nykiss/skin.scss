@@ -65,17 +65,7 @@ html.night {
       box-shadow: none;
     }
 
-    // composer: a flat strip across the whole chat column (icons sit against its edges) with a top hairline
-    --chat-input-max-width: none;
-
-    .chat-input-main {
-      max-width: none !important;
-    }
-
-    .chat-input-container {
-      max-width: none;
-    }
-
+    // composer: a flat strip across the whole column with a top hairline
     .chat-input-wrapper {
       box-shadow: none;
       border-block-start: 1px solid var(--border-color);
