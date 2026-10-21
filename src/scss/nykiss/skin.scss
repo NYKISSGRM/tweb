@@ -180,13 +180,17 @@ html.night {
   }
 }
 
-// composer: one flat strip across the whole visible chat area, flush with the chat list. It follows the same shift
-// as the bubbles' scroll area (_chat.scss .bubbles), so with the right panel docked it narrows to that panel's edge.
+// chat area: header, composer and messages use the whole visible space beside the chat list (not a centred 696px
+// column). The header and composer follow the same shift as the bubbles' scroll area (_chat.scss .bubbles), so with
+// the right panel docked they narrow to that panel's edge. Messages: incoming at the left edge, outgoing at the
+// right with a small gap; a single bubble is capped so long text stays readable. Checked in the layout harness
+// (1440/1000/700 px, list expanded/collapsed, right panel open/closed).
 @media (min-width: 926px) {
   html.night .chat {
     --chat-input-max-width: none;
 
-    .chat-input-main {
+    .chat-input-main,
+    .topbar {
       max-width: none !important;
       width: auto !important;
       margin-inline: 0;
@@ -196,9 +200,24 @@ html.night {
     .chat-input-container {
       max-width: none;
     }
+
+    .bubbles-inner {
+      max-width: none;
+      box-sizing: border-box;
+      padding-inline: 1rem 1.5rem;
+    }
+
+    .bubble:not(.service):not(.is-date) {
+      --max-width: min(46%, 640px);
+      width: 100%;
+      margin-inline: 0;
+    }
   }
 
-  html.night body.is-right-column-shown:not(.right-column-floats) .chat .chat-input-main {
-    inset-inline: calc((var(--folders-sidebar-offset) + var(--left-column-width) + var(--right-column-width)) / 2);
+  html.night body.is-right-column-shown:not(.right-column-floats) .chat {
+    .chat-input-main,
+    .topbar {
+      inset-inline: calc((var(--folders-sidebar-offset) + var(--left-column-width) + var(--right-column-width)) / 2);
+    }
   }
 }
