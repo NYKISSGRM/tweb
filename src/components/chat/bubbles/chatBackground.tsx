@@ -577,7 +577,8 @@ function injectNykissWallpaperStyle() {
 .nykiss-chat-wallpaper {
   background-image: url(assets/img/nykiss-wp.jpg?v=4);
   background-size: cover;
-  background-position: center;
+  /* the photo's centre stays in the middle of the CHAT column: shifted by half of the chat list's width */
+  background-position: calc(50% + var(--left-column-visual-width, 0px) / 2) center;
   background-repeat: no-repeat;
   background-color: #070807;
   filter: blur(3px) saturate(.9) brightness(.82);
