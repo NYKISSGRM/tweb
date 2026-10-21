@@ -3,6 +3,7 @@
 // NYKISS: the folder strip above the chat list — flat, the active tab is told by its accent colour instead of a pill.
 // The temperature folders («Тёплые» / «Горячие») carry data-heat (set in foldersTabs.tsx) for their accent.
 .folders-tabs-scrollable {
+  --scrollable-size: 2.5rem;
   margin: 0;
   border-radius: 0;
   // the hairline is a shadow, not a border: a border would shorten the plate and clip the underline
@@ -20,9 +21,9 @@
     flex: 0 0 auto;
     min-width: 0;
     margin: 0;
-    padding-inline: .875rem;
+    padding-inline: .625rem;
     border-radius: 0;
-    font-size: .875rem;
+    font-size: .8125rem;
     letter-spacing: .01em;
     color: #9a927d;
     background: transparent;
