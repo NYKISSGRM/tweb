@@ -101,7 +101,12 @@ function checkIdentity(id: number, data: any) {
   toast('NYKISS: ты в Gram под другим Telegram-аккаунтом, чем в CRM. Метка на тебе не появится: зайди с основного.', undefined, 9000);
 }
 
+let lastItemsSig = '';
 function apply(data: any) {
+  // the same roster again: nothing to repaint
+  const sig = JSON.stringify(data.items);
+  if(sig === lastItemsSig) return;
+  lastItemsSig = sig;
   index = buildIndex(data.items);
   fullScan = true;
   schedule();

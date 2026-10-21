@@ -7,6 +7,7 @@ html.night {
   --column-box-shadow: none;
   --chat-input-border-radius: 0;
   --scrollbar-color: rgba(255, 255, 255, .18);
+  --menu-backdrop-filter: none;
 
   // columns butt against each other, a hairline instead of a shadow
   #column-left {
@@ -25,6 +26,7 @@ html.night {
 
   .chatlist-chat {
     border-radius: 0;
+    contain: layout style;
 
     .row-title .peer-title {
       font-weight: 700;

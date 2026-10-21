@@ -53,10 +53,6 @@ html.night {
 
 
   // the wallpaper photo stays, but sits much deeper so text and bubbles win (injected style comes later: more specific selector)
-  .nykiss-chat-wallpaper {
-    filter: blur(4px) saturate(.7) brightness(.62);
-  }
-
   .nykiss-chat-wallpaper::after {
     background: linear-gradient(180deg, rgba(14, 13, 19, .7), rgba(10, 9, 14, .86));
   }

@@ -480,17 +480,6 @@
 
 // NYKISS temperature ring — on every avatar that carries a peer id (chat list, search, topbar, profile).
 // Cold has no ring. The size comes from --nykiss-ring / --nykiss-glow so a scaled avatar can compensate.
-@keyframes nykiss-avatar-hot {
-  0%, 100% {
-    box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#E05A20, 0.95),
-      0 0 var(--nykiss-glow, 8px) rgba(#E05A20, 0.45);
-  }
-  50% {
-    box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#FF6B30, 1),
-      0 0 calc(var(--nykiss-glow, 8px) * 2.2) rgba(#E05A20, 0.7);
-  }
-}
-
 .avatar[data-heat] {
   // cold: a small blue ring, quieter than warm / hot
   &[data-heat="cold"] {
@@ -506,13 +495,6 @@
   &[data-heat="hot"] {
     box-shadow: 0 0 0 var(--nykiss-ring, 3px) rgba(#E05A20, 0.95),
       0 0 var(--nykiss-glow, 8px) rgba(#E05A20, 0.45);
-
-    // the pulse repaints the avatar every frame (box-shadow is not compositor-only): full animation level only
-    @media (prefers-reduced-motion: no-preference) {
-      @include animation-level(2) {
-        animation: nykiss-avatar-hot 1.4s ease-in-out infinite;
-      }
-    }
   }
 }
 

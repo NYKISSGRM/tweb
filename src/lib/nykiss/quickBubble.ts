@@ -313,6 +313,7 @@ function reconcileHeatFolders(): Promise<void> {
 
 // ---- CRM sync ----
 
+let lastHeatSig = '';
 async function fetchHeat() {
   const r = await apiFetch('/messenger/heat');
   // another round is already queued (the operator changed something meanwhile): this answer is stale
@@ -325,8 +326,15 @@ async function fetchHeat() {
     if(it.telegram_id) heatMap.set(String(it.telegram_id), heat);
     else if(it.username) heatByName.set(String(it.username).toLowerCase(), heat);
   }
-  applyAllRings();
-  updateFabRing();
+  // an unchanged answer must not cost a pass over every avatar in the document
+  const sig = JSON.stringify(r.items || []);
+  const unchanged = sig === lastHeatSig;
+  lastHeatSig = sig;
+  if(!unchanged) {
+    applyAllRings();
+    updateFabRing();
+  }
+
   // folders are re-read from the server only when the CRM state changed or the last pass is old:
   // switching chats refreshes the heat on every click and must not cost a messages.getDialogFilters each time
   const print = JSON.stringify([...allHeat()].sort());
@@ -1193,10 +1201,13 @@ export function initQuickBubble() {
   watchAvatars();
   window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
-  window.setInterval(() => { if(!document.hidden) refreshHeat(); }, 20000);
+  window.setInterval(() => { if(!document.hidden) refreshHeat(); }, 60000);
   initPinBot();
   initStartFolder();
-  window.setInterval(sync, SYNC_MS);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) sync(); });
-  appImManager.addEventListener('peer_changed', sync);
+  // no polling: sync on a chat change, and once more when its input has been drawn
+  appImManager.addEventListener('peer_changed', () => {
+    sync();
+    window.setTimeout(sync, 1500);
+  });
 }

@@ -548,6 +548,25 @@ if(import.meta.env.DEV) {
     }
   } catch{}
 
+  // NYKISS: lighter animations by default (blur, effects, sticker/emoji panels), applied once per browser so
+  // existing users get them too; a later change in Settings sticks
+  try {
+    if(!localStorage.getItem('nk_perf_v1')) {
+      localStorage.setItem('nk_perf_v1', '1');
+      setAppSettings('liteMode', {
+        ...appSettings.liteMode,
+        blur: true,
+        effects: true,
+        effects_premiumstickers: true,
+        effects_reactions: true,
+        effects_emoji: true,
+        emoji_appear: true,
+        stickers_panel: true,
+        emoji_panel: true
+      });
+    }
+  } catch{}
+
   setHasFoldersSidebar(railOn);
 
   rootScope.managers.rootScope.getPremium().then((isPremium) => {
