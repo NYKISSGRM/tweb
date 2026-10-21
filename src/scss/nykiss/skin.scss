@@ -197,6 +197,17 @@ html.night {
       inset-inline: calc((var(--folders-sidebar-offset) + var(--left-column-width) - var(--page-chats-padding)) / 2);
     }
 
+    // header cluster (avatar + name + status): air from the list border. Upstream zeroes the left slot when the
+    // back button is hidden (_chatTopbar.scss), leaving only the bar's 4px — .75rem here puts the avatar at 16px,
+    // the same edge as the chat list rows and the bubbles.
+    &:first-child .topbar:not(.show-back-button) {
+      --topbar-avatar-close-gap: .75rem; // keeps the in-chat search overlay (_topbarSearch.scss) in step
+
+      .chat-info {
+        padding-inline-start: .75rem;
+      }
+    }
+
     .chat-input-container {
       max-width: none;
     }
