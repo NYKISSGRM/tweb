@@ -41,7 +41,11 @@ export async function tryAutoKey(): Promise<boolean> {
 
   try {
     const initData = await requestInitData();
-    if(!initData) return false;
+    if(!initData) {
+      // Telegram gave no signed link (for example the bot's button is not set for this chat yet): that is not a final answer, try again in a minute
+      try { localStorage.setItem(RETRY_LS, String(Date.now() - RETRY_MS + 60 * 1000)); } catch{}
+      return false;
+    }
     const res = await fetchTimeout(API + '/messenger/key/by-telegram', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},

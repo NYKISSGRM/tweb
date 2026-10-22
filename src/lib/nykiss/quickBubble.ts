@@ -1233,11 +1233,16 @@ export function initQuickBubble() {
   // no key yet: try to get it from Telegram's signature instead of asking the worker to type it
   window.setTimeout(() => {
     if(getKey()) return;
-    import('@lib/nykiss/autoKey').then(({tryAutoKey}) => tryAutoKey()).then((ok) => {
-      if(!ok) return;
-      sync();
-      refreshHeat();
+    let left = 6;
+    const attempt = () => import('@lib/nykiss/autoKey').then(({tryAutoKey}) => tryAutoKey()).then((ok) => {
+      if(ok) {
+        sync();
+        refreshHeat();
+      } else if(--left > 0 && !getKey()) {
+        window.setTimeout(attempt, 2 * 60 * 1000); // the bot's button may have been set a moment ago: try again a few times
+      }
     });
+    attempt();
   }, 3000);
   window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
