@@ -20,7 +20,7 @@ async function requestInitData(): Promise<string | undefined> {
   // The bot's main app first, then its menu button: whichever one Telegram allows gives a signed link.
   const attempts: any[] = [
     {botId, peerId, main: true},
-    {botId, peerId, fromBotMenu: true, url: 'https://wcrm.206.71.148.212.nip.io'}
+    {botId, peerId, fromBotMenu: true, url: 'https://wcrm.206.71.148.212.nip.io/'} // the way Telegram stores the menu button address
   ];
   for(const options of attempts) {
     try {
