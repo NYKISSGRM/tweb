@@ -8,6 +8,7 @@ import {extractInitData} from '@lib/nykiss/autoKeyModel';
 
 const BOT_USERNAME = 'Nykisshelperbot';
 const RETRY_LS = 'nk_autokey_at';
+const BOUND_LS = 'nk_key_tg';   // Telegram id of the account the stored key was checked against
 const RETRY_MS = 30 * 60 * 1000;   // one attempt per half hour at most: a manual key or a non-worker account is a normal end
 
 async function requestInitData(): Promise<string | undefined> {
@@ -31,8 +32,22 @@ async function requestInitData(): Promise<string | undefined> {
   }
 }
 
+function boundTo(): string {
+  try { return localStorage.getItem(BOUND_LS) || ''; } catch{ return ''; }
+}
+
+function bind(): void {
+  try { localStorage.setItem(BOUND_LS, String(rootScope.myId)); } catch{}
+}
+
+/** true once the key in this Gram is the one that belongs to the logged-in Telegram account */
+export function isKeyBound(): boolean {
+  return !!getKey() && boundTo() === String(rootScope.myId);
+}
+
 export async function tryAutoKey(): Promise<boolean> {
-  if(getKey()) return true;
+  // a key typed by hand (or left from another account) is not proof it is this account's: check it against Telegram's signature once
+  if(isKeyBound()) return true;
   try {
     const last = +(localStorage.getItem(RETRY_LS) || 0);
     if(Date.now() - last < RETRY_MS) return false;
@@ -54,10 +69,16 @@ export async function tryAutoKey(): Promise<boolean> {
       referrerPolicy: 'no-referrer',
       body: JSON.stringify({init_data: initData})
     });
-    if(!res.ok) return false; // 403: not a CRM worker, 401/429: nothing to do, the manual key stays available
+    if(res.status === 403) { // not a CRM worker: whatever key is stored stays, nothing more to check for this account
+      bind();
+      return false;
+    }
+    if(!res.ok) return false; // 401/429: nothing to do now, the manual key stays available
     const body: any = await res.json();
     if(typeof body?.key !== 'string' || !body.key) return false;
-    setKey(body.key);
+    bind();
+    if(body.key === getKey()) return true;
+    setKey(body.key); // the account's own key replaces a wrong one
     return true;
   } catch{
     return false;

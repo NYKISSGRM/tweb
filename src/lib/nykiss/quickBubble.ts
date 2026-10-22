@@ -1230,15 +1230,14 @@ export function initQuickBubble() {
 
   sync();
   watchAvatars();
-  // no key yet: try to get it from Telegram's signature instead of asking the worker to type it
+  // get the account's own key from Telegram's signature (and replace a typed key that belongs to another account)
   window.setTimeout(() => {
-    if(getKey()) return;
     let left = 6;
     const attempt = () => import('@lib/nykiss/autoKey').then(({tryAutoKey}) => tryAutoKey()).then((ok) => {
       if(ok) {
         sync();
         refreshHeat();
-      } else if(--left > 0 && !getKey()) {
+      } else if(--left > 0) {
         window.setTimeout(attempt, 2 * 60 * 1000); // the bot's button may have been set a moment ago: try again a few times
       }
     });
