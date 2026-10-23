@@ -568,6 +568,14 @@ export const ChatBackground: Component<ChatBackgroundProps> = (props) => {
 // — not inline previews): tweb's gradient/pattern/image canvas is hidden and replaced by the brand
 // photo (blurred + darkened into a moody backdrop so bubbles stay readable). Not changeable by the
 // user — that's the intent ("у всех"). Relative url() resolves against the document (/tweb/).
+// Chats that keep the wallpaper their group admins set, instead of the brand one (channel id from the
+// Bot API id -1002586156924).
+const NYKISS_NATIVE_WALLPAPER_PEERS = new Set<number>([-2586156924]);
+
+export function isNykissNativeWallpaperPeer(peerId: PeerId | undefined) {
+  return peerId !== undefined && NYKISS_NATIVE_WALLPAPER_PEERS.has(+peerId);
+}
+
 function injectNykissWallpaperStyle() {
   const STYLE_ID = 'nykiss-chat-wallpaper-style';
   if(document.getElementById(STYLE_ID)) return;
@@ -600,6 +608,8 @@ const appChatBackground = (() => {
 
   // Solid signal driving the embedded `<ChatBackground>` props.
   const [props, setProps] = createSignal<ChatBackgroundProps>({});
+  // The open chat shows its own (group) wallpaper: the brand layer is switched off for it.
+  const [nativeWallpaper, setNativeWallpaper] = createSignal(false);
 
   let activeGradientRenderer: ChatBackgroundGradientRenderer | undefined;
   let activeGradientMeta: ActiveBackgroundMeta | undefined;
@@ -645,7 +655,7 @@ const appChatBackground = (() => {
 
     render(() => (
       <ChatBackground
-        class="nykiss-chat-wallpaper"
+        class={nativeWallpaper() ? undefined : 'nykiss-chat-wallpaper'}
         theme={props().theme}
         wallPaper={props().wallPaper}
         transition={props().transition}
@@ -679,8 +689,13 @@ const appChatBackground = (() => {
     transition?: ChatBackgroundTransition,
     onCachedStatus?: (cached: boolean) => void,
     onHighlightColor?: (hsla: string) => void,
-    deferReveal?: (reveal: () => void) => void
+    deferReveal?: (reveal: () => void) => void,
+    nativeWallpaper?: boolean
   } = {}): Promise<void> => {
+    // Internal re-paints (theme change, PiP re-render) and the global push pass nothing: they keep
+    // what the open chat chose; only a chat's own publish sets or clears it.
+    if(opts.nativeWallpaper !== undefined) setNativeWallpaper(opts.nativeWallpaper);
+
     // Resolve undefined theme/wallPaper to the *current global* theme + wallpaper up front.
     // Most callers (initial load, `appImManager.setBackground`, a chat with no per-peer
     // wallpaper) pass neither and lean on the inner `<ChatBackground>` resolving from the

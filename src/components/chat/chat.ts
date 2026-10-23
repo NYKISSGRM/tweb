@@ -17,7 +17,7 @@ import mediaSizes, {ScreenSize} from '@helpers/mediaSizes';
 import ChatSearch from '@components/chat/search';
 import IS_TOUCH_SUPPORTED from '@environment/touchSupport';
 import ChatBackgroundGradientRenderer from '@components/chat/gradientRenderer';
-import {ChatBackgroundTransition} from '@components/chat/bubbles/chatBackground';
+import {ChatBackgroundTransition, isNykissNativeWallpaperPeer} from '@components/chat/bubbles/chatBackground';
 import {AppManagers} from '@lib/managers';
 import SlicedArray from '@helpers/slicedArray';
 import themeController from '@helpers/themeController';
@@ -402,6 +402,7 @@ export default class Chat extends EventListenerBase<{
     return this.appImManager.appChatBackground.setBackground({
       theme: this.currentTheme,
       wallPaper: this.currentWallPaper,
+      nativeWallpaper: isNykissNativeWallpaperPeer(this.peerId),
       transition: finalTransition,
       onCachedStatus,
       // Scope the canvas-computed hsla to this chat's container so each chat's
