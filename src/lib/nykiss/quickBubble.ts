@@ -1246,6 +1246,7 @@ export function initQuickBubble() {
   window.setTimeout(async() => { await migrateLegacyHeat(); refreshHeat(); }, 4000);
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({initNykissHint}) => initNykissHint()); }, 1000);
+  window.setTimeout(() => { import('@lib/nykiss/autoUpdate').then(({initAutoUpdate}) => initAutoUpdate()); }, 8000);
   window.setInterval(() => { if(!document.hidden) refreshHeat(); }, 60000);
   initPinBot();
   initStartFolder();
