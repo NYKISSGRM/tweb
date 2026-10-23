@@ -17,7 +17,8 @@ let _fetchPasskeyOptionPromise: Promise<[TrueDcId, AuthPasskeyLoginOptions]>;
 export default function PasskeyLoginButton(props: {
   disabled?: boolean
 } = {}): JSX.Element {
-  if(!IS_WEB_AUTHN_SUPPORTED) return null;
+  // NYKISS: Telegram passkeys are bound to telegram.org, so on our own domain the button can only end in «Something went wrong»
+  if(!IS_WEB_AUTHN_SUPPORTED || !/(^|\.)telegram\.org$/.test(location.hostname)) return null;
 
   const [visible, setVisible] = createSignal(false);
   const [submitting, setSubmitting] = createSignal(false);
