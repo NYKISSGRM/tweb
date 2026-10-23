@@ -100,6 +100,15 @@ const CHAT_WIDTH_MAX = 696;
 // shift.
 const RIGHT_SIDEBAR_FITS_EXTRA = 64;
 
+// NYKISS Gram: the profile (right column) pushes the chat to the left instead of covering it, for as long as the chat
+// keeps at least this much width beside it. Stock tweb floats the column unless a full CHAT_WIDTH_MAX chat fits too,
+// which with a wide left column covers the chat on an ordinary window.
+export const MIN_DOCKED_CHAT_WIDTH = 480;
+
+export function shouldFloatRightColumn(availableWidth: number, otherColumnsWidth: number) {
+  return availableWidth - otherColumnsWidth < MIN_DOCKED_CHAT_WIDTH;
+}
+
 const STORAGE_KEY_LEFT = 'sidebar-left-width';
 const STORAGE_KEY_RIGHT = 'sidebar-right-width';
 
@@ -287,13 +296,12 @@ export default function updateColumnWidths(): void {
   // layout, so resizing either column (or collapsing the left, or toggling
   // the folders panel) immediately re-evaluates the floats decision.
   const foldersOffset = foldersSidebarShown ? FOLDERS_SIDEBAR_OFFSET : 0;
-  const rightColumnFits = foldersOffset + layoutLeftWidth + rightWidth + CHAT_WIDTH_MAX + PAGE_CHATS_PADDING * 4;
+  const floats = isMobile || shouldFloatRightColumn(availableWidth, foldersOffset + layoutLeftWidth + rightWidth + PAGE_CHATS_PADDING * 4);
   // Handheld is a slider — the right column overlays the chat, so it
   // always floats. Without this body.right-column-floats stays off and the
   // `.bubbles-inner { width: calc(100% - var(--right-column-width) ...) }`
   // rule in _chat.scss subtracts the right column from the chat width,
   // collapsing the messages column to 0 / a tiny centered strip.
-  const floats = isMobile || availableWidth < rightColumnFits;
   const middleWidth = isMobile ? vw : availableWidth - PAGE_CHATS_PADDING * 2;
   // Chat content max width — fills the viewport on handheld (single-column
   // slider) and caps at CHAT_WIDTH_MAX otherwise. It also never exceeds the
