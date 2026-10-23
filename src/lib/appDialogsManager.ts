@@ -860,6 +860,7 @@ export class DialogElement {
 
 type FilterRendered = {
   id: number,
+  localId?: number,
   container: HTMLElement,
   scrollable: Scrollable,
   topNotification?: ChatlistTopNotificationController,
@@ -1457,7 +1458,9 @@ export class AppDialogsManager {
         this.xds[filterId].setIndexKey(indexKey);
 
         positionElementByIndex(renderedFilter.container, this.folders.container, filter.localId);
+        renderedFilter.localId = filter.localId;
       });
+      this.sortFilterPanes();
     });
   }
 
@@ -1746,6 +1749,8 @@ export class AppDialogsManager {
     const renderedFilter = this.filtersRendered[id];
     if(renderedFilter) {
       positionElementByIndex(renderedFilter.container, this.folders.container, filter.localId);
+      renderedFilter.localId = filter.localId;
+      this.sortFilterPanes();
       return;
     }
 
@@ -1773,11 +1778,34 @@ export class AppDialogsManager {
 
     this.filtersRendered[id] = {
       id,
+      localId: filter.localId,
       container: div,
       scrollable
     };
 
+    this.sortFilterPanes();
     this.onFiltersLengthChange();
+  }
+
+  // The panes must stand in the order of the folder tabs: the tab strip selects a pane by its index. A localId is
+  // not that index (here the ids start past 0, and a folder created before «Все» landed at the wrong place), so
+  // folders that arrive in another order than they are listed left the open tab showing another folder's empty
+  // pane. The pane that is shown follows the open folder again after the move.
+  private sortFilterPanes() {
+    const {container} = this.folders;
+    const rendered = Object.values(this.filtersRendered).filter((item) => item?.container.parentElement === container);
+    const sorted = rendered.slice().sort((a, b) => (a.localId ?? 0) - (b.localId ?? 0));
+    let moved = false;
+    sorted.forEach((item, idx) => {
+      if(container.children[idx] === item.container) return;
+      container.insertBefore(item.container, container.children[idx] || null);
+      moved = true;
+    });
+
+    if(!moved) return;
+    const shown = this.filtersRendered[this.filterId]?.container;
+    if(!shown) return;
+    rendered.forEach((item) => item.container.classList.toggle('active', item.container === shown));
   }
 
   private changeFiltersAllChatsKey() {
