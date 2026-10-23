@@ -122,6 +122,7 @@ import ArchiveDialog, {archiveDialogTagName} from '@components/archiveDialog';
 import {createArchiveDialogContextMenu} from '@components/archiveDialogContextMenu';
 import {children, createEffect, createRoot, createUniqueId, on, untrack} from 'solid-js';
 import useFolders from '@stores/folders';
+import alignFolderPanes from '@lib/nykiss/folderPanes';
 import FoldersTabs from '@components/foldersTabs';
 import clamp from '@helpers/number/clamp';
 import debounce from '@helpers/schedulers/debounce';
@@ -1220,6 +1221,19 @@ export class AppDialogsManager {
 
     setOnClick(() => selectTab);
 
+    // * the panes follow the tabs: when the tabs are reordered or another one is selected, and once more after the
+    // * switch animation has finished
+    createRoot(() => {
+      const {selectedFolderId} = useFolders();
+      createEffect(on(
+        () => [folderItems.map((item) => item.id).join(), selectedFolderId()] as const,
+        () => {
+          this.sortFilterPanes();
+          window.setTimeout(() => this.sortFilterPanes(), 400);
+        }
+      ));
+    });
+
     createFolderContextMenu({
       appSidebarLeft,
       AppChatFoldersTab,
@@ -1787,25 +1801,22 @@ export class AppDialogsManager {
     this.onFiltersLengthChange();
   }
 
-  // The panes must stand in the order of the folder tabs: the tab strip selects a pane by its index. A localId is
-  // not that index (here the ids start past 0, and a folder created before «Все» landed at the wrong place), so
-  // folders that arrive in another order than they are listed left the open tab showing another folder's empty
-  // pane. The pane that is shown follows the open folder again after the move.
+  // The tab strip selects a pane by its index, so the panes must stand in the order of the tabs and the pane
+  // that is shown must be the one of the selected folder. Neither held when folders arrived in another order
+  // than they are listed (a localId is not an index; here the ids start past 0): the open tab then showed
+  // another folder's empty pane. The tabs are the truth: every pane is put where its tab is, and the
+  // shown pane follows the selected tab again. Does nothing while a switch animation is running.
   private sortFilterPanes() {
     const {container} = this.folders;
+    const {folderItems, selectedFolderId} = useFolders();
     const rendered = Object.values(this.filtersRendered).filter((item) => item?.container.parentElement === container);
-    const sorted = rendered.slice().sort((a, b) => (a.localId ?? 0) - (b.localId ?? 0));
-    let moved = false;
-    sorted.forEach((item, idx) => {
-      if(container.children[idx] === item.container) return;
-      container.insertBefore(item.container, container.children[idx] || null);
-      moved = true;
-    });
+    const byTabs = folderItems.map((item) => this.filtersRendered[item.id]).filter((item) => item?.container.parentElement === container);
+    const order = byTabs.length === rendered.length ?
+      byTabs :
+      rendered.slice().sort((a, b) => (a.localId ?? 0) - (b.localId ?? 0));
+    if(!order.length) return;
 
-    if(!moved) return;
-    const shown = this.filtersRendered[this.filterId]?.container;
-    if(!shown) return;
-    rendered.forEach((item) => item.container.classList.toggle('active', item.container === shown));
+    alignFolderPanes(container, order.map((item) => item.container), this.filtersRendered[selectedFolderId()]?.container);
   }
 
   private changeFiltersAllChatsKey() {
