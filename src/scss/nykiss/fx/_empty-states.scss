@@ -1,0 +1,49 @@
+// NYKISS empty states: restrained, colour-only. No geometry, no transform, no opacity on the fade-in wrapper.
+
+html.night {
+  // "Select a chat" pill: CSS-module class (hashed), so match by substring.
+  // --message-highlighting-color is scoped to .chat, the pill sits outside it, so set background explicitly.
+  [class*="_selectChatPill_"] {
+    background: var(--nk-plate);
+    color: var(--primary-text-color, #eceaf3);
+    box-shadow: inset 0 0 0 1px rgba(var(--nk-accent-rgb), .28), 0 1px 0 rgba(0, 0, 0, .35);
+  }
+
+  // soft accent glow under the static emblem (filter only). Not on the folder's animated sticker: a filter would repaint every frame.
+  .empty-placeholder-dialogs-icon {
+    filter: drop-shadow(0 6px 18px rgba(var(--nk-accent-rgb), .18));
+  }
+
+  // folder button: outlined accent instead of a solid slab; inset shadow keeps the box size
+  .empty-placeholder-folder .btn-control {
+    background: transparent;
+    color: var(--nk-accent-hi);
+    box-shadow: inset 0 0 0 1px rgba(var(--nk-accent-rgb), .45);
+
+    @media (hover: hover) {
+      &:hover {
+        background: rgba(var(--nk-accent-rgb), .12);
+        box-shadow: inset 0 0 0 1px var(--nk-accent-hi);
+      }
+    }
+
+    &:active {
+      background: rgba(var(--nk-accent-rgb), .2);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--nk-accent-hi);
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      opacity: var(--disabled-opacity);
+      box-shadow: inset 0 0 0 1px rgba(var(--nk-accent-rgb), .2);
+    }
+  }
+}
+
+// box-shadow added to the base transition list; gated by animation level (html is above body, so no mixin here)
+html.night body.animation-level-1 .empty-placeholder-folder .btn-control {
+  transition: background-color var(--transition-standard-out), color var(--transition-standard-out), box-shadow var(--transition-standard-out);
+}

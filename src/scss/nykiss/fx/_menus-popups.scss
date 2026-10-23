@@ -1,0 +1,55 @@
+// NYKISS Gram: context menus and popups. Colours/shadows only, no size changes.
+// Needs @use "nykiss/fx/menus-popups" in style.scss after skin (integrator).
+
+html.night {
+  .btn-menu .btn-menu-item:not(.danger):hover .btn-menu-item-icon {
+    color: var(--nk-accent-hi); // replaces hard-coded gold in skin.scss
+  }
+
+  // focus ring belongs to the a11y layer (?a11y=1); low specificity via :where
+  &:where(.a11y) .btn-menu .btn-menu-item:focus-visible {
+    outline: 2px solid var(--nk-accent-hi); // light accent, >3:1 on the dark menu
+    outline-offset: -2px;
+    background-color: rgba(var(--nk-accent-rgb), .12);
+
+    &:not(.danger) .btn-menu-item-icon {
+      color: var(--nk-accent-hi);
+    }
+  }
+
+  &.no-touch .btn-menu .btn-menu-item:not(.danger):not(.is-disabled):not(.is-static):not(.btn-menu-search) {
+    &:hover {
+      background-color: rgba(var(--nk-accent-rgb), .12);
+    }
+
+    &:active {
+      background-color: rgba(var(--nk-accent-rgb), .16);
+    }
+  }
+
+  &.no-touch .btn-menu .btn-menu-item.danger {
+    &:hover,
+    &:active {
+      background-color: rgba(var(--danger-color-rgb), .14);
+    }
+  }
+
+  // colour only: hr height comes from its border
+  .btn-menu hr {
+    border-color: var(--border-color);
+    opacity: 1;
+  }
+
+  // darker overlay, but keep no-overlay popups transparent
+  .popup:not(.no-overlay) {
+    background-color: rgba(6, 5, 10, .62);
+  }
+
+  .popup-container {
+    box-shadow: 0 0 0 1px var(--border-color), 0 24px 64px rgba(0, 0, 0, .6);
+
+    .popup-body hr {
+      border-color: var(--border-color);
+    }
+  }
+}

@@ -1,0 +1,62 @@
+// NYKISS folder tabs: soft underline glow, calmer inactive text, accent-following count pills.
+// Colour only; geometry, the sliding indicator and its transitions stay with _nykissFolders.scss / _slider.scss.
+// Each tab sets its own --nk-accent (heat folders override it), so everything below reads var(--nk-accent).
+
+html.night #folders-tabs .menu-horizontal-div-item {
+  // underline: paint only, JS owns transform/width
+  .menu-horizontal-div-item-background {
+    box-shadow: 0 0 .5rem color-mix(in srgb, var(--nk-accent) 55%, transparent);
+  }
+
+  &:not(.active) .menu-horizontal-div-item-span {
+    opacity: .92; // keeps #9a927d above 4.5:1 on the dark tab surface (.86 gave about 4.8, too close)
+  }
+
+  @media (hover: hover) {
+    &:not(.active):hover {
+      background-color: color-mix(in srgb, var(--nk-accent) 6%, transparent);
+
+      .menu-horizontal-div-item-span {
+        opacity: 1;
+      }
+    }
+  }
+
+  // inactive chips only: the active chip keeps its solid accent fill from _nykissFolders.scss
+  &:not(.active) .badge:not(.badge-gray) {
+    background-color: color-mix(in srgb, var(--nk-accent) 16%, transparent);
+    color: var(--nk-accent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nk-accent) 28%, transparent);
+  }
+
+  .badge.badge-gray {
+    background-color: rgba(255, 255, 255, .07);
+    color: #9a927d; // same muted tone as the inactive tab text in _nykissFolders.scss
+  }
+}
+
+// focus ring belongs to the a11y layer (?a11y=1)
+html.night:where(.a11y) #folders-tabs .menu-horizontal-div-item:focus-visible {
+  outline: 2px solid var(--nk-accent);
+  outline-offset: -2px;
+
+  .menu-horizontal-div-item-span {
+    opacity: 1;
+  }
+}
+
+html.night:not([data-nk-rail]) #folders-tabs .menu-horizontal-div-item.active {
+  background-color: color-mix(in srgb, var(--nk-accent) 4%, transparent);
+}
+
+// Motion: `body` sits below `html.night`, so the animation-level gate is written out here
+// (the animation-level mixin would put body in front of html and never match).
+html.night body.animation-level-1 #folders-tabs .menu-horizontal-div-item {
+  .menu-horizontal-div-item-span {
+    transition: opacity .2s ease-in-out;
+  }
+
+  .badge {
+    transition: background-color .2s ease-in-out, box-shadow .2s ease-in-out;
+  }
+}

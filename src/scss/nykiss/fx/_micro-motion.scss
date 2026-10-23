@@ -1,0 +1,46 @@
+// Micro-motion: soft press feedback on icon buttons, accent hover on toggles and checkboxes.
+// Colours/opacity only, no geometry. `body` sits below `html.night`, so the animation-level gate
+// is written out (the animation-level mixin would put body in front of html and never match).
+// Level 1 = this level and up (reduced + full); level 0 (off) gets none of it.
+
+// Press dims the button. Base .btn-icon already fades opacity (_button.scss), so no transition is
+// redeclared here (a new list would wipe .btn-corner's transform slide and the composer's lists).
+// Left out: composer icons and send (_composer.scss owns their press), .btn-corner (the FAB).
+html.night body.animation-level-1 .btn-icon:not(:disabled):not(.btn-disabled):not(.btn-corner):not(.toggle-emoticons):not(.attach-file):not(.btn-send):active {
+  opacity: .86;
+}
+
+// Toggle: hover is read from the row, the label itself has pointer-events:none.
+// Hover is a bonus cue only: the toggle state and the a11y focus ring are untouched.
+html.night.no-touch body.animation-level-1 .row:not(.is-fake-disabled):hover
+  .checkbox-field-toggle:not(.checkbox-disabled)
+  .checkbox-field-input:not(:checked)
+  + .checkbox-toggle {
+  border-color: rgba(var(--nk-accent-rgb), .7);
+}
+
+// Checked toggle: faint accent halo; base already fades border/background, box-shadow is added.
+// The base list (border-color, background-color) is repeated because a new list replaces it.
+html.night body.animation-level-1 .checkbox-field-toggle:not(.checkbox-disabled) .checkbox-field-input:checked:not(.is-fake-disabled) + .checkbox-toggle {
+  box-shadow: 0 0 0 3px rgba(var(--nk-accent-rgb), .14);
+  transition:
+    border-color var(--transition),
+    background-color var(--transition),
+    box-shadow var(--transition);
+}
+
+// Checkbox hover border, unchecked only (a checked box keeps its own fill/border).
+html.night.no-touch body.animation-level-1 .checkbox-field:not(.checkbox-field-toggle):not(.checkbox-disabled):not(.checkbox-color-white):hover
+  .checkbox-field-input:not(:checked)
+  ~ .checkbox-box
+  .checkbox-box-border {
+  border-color: rgba(var(--nk-accent-rgb), .7);
+  transition: border-color .15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.night body .checkbox-toggle,
+  html.night body .checkbox-box-border {
+    transition-duration: .001ms;
+  }
+}

@@ -1,0 +1,133 @@
+// NYKISS Gram: message composer. Colours/shadows/opacity only; geometry stays owned by _chat.scss and skin.scss.
+// Needs to be @use'd after nykiss/skin (the send accent overrides skin's !important by specificity).
+// `body` sits below `html.night`, so the animation-level gates are written out by hand (the mixin would put body first).
+
+$send-on: ':is(.send, .edit, .schedule, .forward):not(.disabled)';
+$send-btn: '.chat-input .btn-send-container .btn-send';
+
+html.night {
+  // placeholder contrast: only the tokens the placeholder reads (not under high-contrast, which sets them on :root)
+  &:not(.high-contrast) .chat .chat-input-wrapper {
+    --input-message-placeholder-color: #a29eb3;
+    --input-placeholder-color: #a29eb3;
+  }
+
+  // focus glow: static shadow on a pseudo, only its opacity fades (wrapper is already position:relative; z-index:3)
+  .chat .chat-input-wrapper::after {
+    content: "";
+    position: absolute;
+    inset-block-start: -1px;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0 rgba(var(--nk-accent-rgb), .6), 0 -10px 24px -14px rgba(var(--nk-accent-rgb), .45);
+  }
+
+  .chat .chat-input-wrapper:focus-within::after {
+    opacity: 1;
+  }
+
+  // send button in the accent when there is something to send (skin.scss:79 keeps it transparent: its :not(.send) is on the wrong element)
+  .chat #{$send-btn}#{$send-on} {
+    // !important: skin.scss and _chat.scss both pin these with !important
+    background-color: var(--nk-accent) !important;
+    color: var(--badge-text-color, #0e0d13) !important;
+
+    &:focus-visible {
+      outline-color: var(--badge-text-color, #0e0d13);
+    }
+  }
+
+  &.no-touch .chat #{$send-btn}#{$send-on} {
+    &:hover {
+      background-color: var(--nk-accent-hi) !important;
+    }
+
+    &:active {
+      background-color: var(--nk-accent) !important;
+    }
+  }
+
+  &.no-touch .chat .chat-input:not(.is-ephemeral-composer) .btn-send-container .btn-send#{$send-on}:hover {
+    box-shadow: 0 0 16px -2px rgba(var(--nk-accent-rgb), .5);
+  }
+
+  // press feedback also on touch (no .no-touch prefix)
+  .chat #{$send-btn}#{$send-on}:active {
+    background-color: var(--nk-accent) !important;
+  }
+
+  // mic (same element, record states)
+  &.no-touch .chat #{$send-btn}:is(.record, .record-video):hover {
+    // !important: skin.scss pins transparent/secondary with !important
+    color: var(--nk-accent-hi) !important;
+    background-color: rgba(var(--nk-accent-rgb), .12) !important;
+  }
+
+  .chat #{$send-btn}:is(.record, .record-video):active {
+    background-color: rgba(var(--nk-accent-rgb), .2) !important;
+  }
+
+  // emoji and attach
+  .chat .chat-input-wrapper .toggle-emoticons,
+  .chat .chat-input-wrapper .attach-file {
+    color: var(--secondary-text-color);
+  }
+
+  &.no-touch .chat .chat-input-wrapper {
+    .toggle-emoticons:not(.btn-disabled):hover,
+    .attach-file:not(.btn-disabled):hover {
+      color: var(--nk-accent-hi);
+      background-color: rgba(var(--nk-accent-rgb), .1);
+    }
+
+    .toggle-emoticons:not(.btn-disabled):active,
+    .attach-file:not(.btn-disabled):active {
+      background-color: rgba(var(--nk-accent-rgb), .18);
+    }
+  }
+
+  // open panel / menu
+  .chat .chat-input-wrapper {
+    .toggle-emoticons.active,
+    .attach-file.menu-open,
+    .attach-file.active {
+      color: var(--nk-accent-hi);
+      background-color: rgba(var(--nk-accent-rgb), .14);
+    }
+  }
+
+  &.no-touch .chat .chat-input-wrapper {
+    .toggle-emoticons.active:hover,
+    .attach-file.menu-open:hover,
+    .attach-file.active:hover {
+      color: var(--nk-accent-hi);
+      background-color: rgba(var(--nk-accent-rgb), .14);
+    }
+  }
+}
+
+// motion: colour/opacity fades from reduced up, press scale at full only
+html.night body.animation-level-1 .chat {
+  .chat-input-wrapper::after {
+    transition: opacity .2s var(--transition-standard-easing);
+  }
+
+  #{$send-btn},
+  .chat-input-wrapper .toggle-emoticons,
+  .chat-input-wrapper .attach-file {
+    transition: color .15s var(--transition-standard-easing), background-color .15s var(--transition-standard-easing),
+      transform .12s var(--transition-standard-easing);
+  }
+}
+
+html.night body.animation-level-2 .chat {
+  #{$send-btn}:active,
+  .chat-input-wrapper .toggle-emoticons:active,
+  .chat-input-wrapper .attach-file:active {
+    transform: scale(.93);
+  }
+}

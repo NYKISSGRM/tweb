@@ -1,0 +1,43 @@
+// NYKISS Gram: message bubbles. Colours, shadows and edges only, no size changes.
+// Backgrounds go through the --message-*background-color variables (reactions, reply icons use them too).
+
+html.night .chat {
+  --message-checkbox-color: var(--nk-accent);
+  --message-checkbox-border-color: var(--nk-accent-hi);
+
+  // outgoing: dark amber plate that follows the accent (theme.scss keeps a plain fallback)
+  .bubble.is-out {
+    --message-background-color: color-mix(in srgb, var(--nk-accent) 14%, #17151f);
+    --light-message-background-color: color-mix(in srgb, var(--nk-accent) 14%, #17151f);
+    --light-filled-message-background-color: color-mix(in srgb, var(--nk-accent) 14%, #17151f);
+    --dark-message-background-color: color-mix(in srgb, var(--nk-accent) 14%, #17151f);
+  }
+
+  // incoming: graphite (.is-in, not :not(.is-out), so service/date pills are left alone)
+  .bubble.is-in:not(.service) {
+    --message-background-color: #1d1c26;
+    --light-message-background-color: #1d1c26;
+    --light-filled-message-background-color: #1d1c26;
+    --dark-message-background-color: #1d1c26;
+  }
+
+  // fine edge via box-shadow ring (no border = no size change); transparent-background bubbles excluded
+  .bubble.is-out:not(.sticker):not(.emoji-big):not(.round):not(.just-media):not(.service) .bubble-content {
+    box-shadow: 0 0 0 1px rgba(var(--nk-accent-rgb), .22), 0 1px 2px rgba(0, 0, 0, .35);
+  }
+
+  .bubble.is-in:not(.sticker):not(.emoji-big):not(.round):not(.just-media):not(.service) .bubble-content {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .05), 0 1px 2px rgba(0, 0, 0, .35);
+  }
+
+  // calmer selection / context-menu stripe; is-highlighted keeps the variable so the flash still works
+  .bubble.is-selected:after,
+  .bubble.is-active:after {
+    background-color: rgba(var(--nk-accent-rgb), .12);
+  }
+
+  // links
+  .bubble .anchor-url:not(.reply-markup-button):not(.rich-button-link) {
+    text-decoration-color: rgba(var(--nk-accent-rgb), .45);
+  }
+}

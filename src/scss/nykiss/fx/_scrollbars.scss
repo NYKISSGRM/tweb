@@ -1,0 +1,55 @@
+// NYKISS Gram: scrollbars. Colours only; widths/sizes stay owned by skin.scss and partials/_scrollable.scss.
+// Rest state is untouched (thumb hidden until hover/scroll, as tweb does). No scrollbar-color at rest on purpose.
+
+html.night {
+  // overlay mode (Chrome>=145, Firefox, Safari): standard path, only :hover to keep the Firefox rest state hidden
+  &.overlay-scroll .scrollable:hover {
+    scrollbar-color: rgba(var(--nk-accent-rgb), .5) rgba(255, 255, 255, .03);
+  }
+
+  // overlay mode, ::-webkit (Safari desktop); radius restated because base hover rule gives 8px
+  &.overlay-scroll .scrollable:hover::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, .03);
+  }
+
+  &.overlay-scroll .scrollable:hover::-webkit-scrollbar-thumb {
+    border-radius: 2px;
+    background-color: rgba(var(--nk-accent-rgb), .4);
+  }
+
+  &.overlay-scroll .scrollable:hover::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(var(--nk-accent-rgb), .6);
+  }
+
+  &.overlay-scroll .scrollable:hover::-webkit-scrollbar-thumb:active {
+    background-color: rgba(var(--nk-accent-rgb), .85);
+  }
+
+  // custom mode: JS thumb div
+  &.custom-scroll .scrollable-thumb {
+    border-radius: 2px;
+  }
+
+  &.custom-scroll .scrollable:hover .scrollable-thumb {
+    background-color: rgba(var(--nk-accent-rgb), .4);
+  }
+
+  // specificity must beat the container-hover rule above, or hover/drag states never show
+  &.custom-scroll .scrollable:hover .scrollable-thumb:hover {
+    background-color: rgba(var(--nk-accent-rgb), .6);
+  }
+
+  &.custom-scroll .scrollable:hover .scrollable-thumb.is-focused,
+  &.custom-scroll .scrollable .scrollable-thumb.is-focused.is-focused {
+    background-color: rgba(var(--nk-accent-rgb), .85);
+  }
+
+  // colour fade only; opacity kept in the list so the base fade survives. Written by hand: animation-level mixin does not match under html.night
+  body.animation-level-1 .scrollable-thumb {
+    transition: opacity .1s ease-in-out, background-color .15s ease-out;
+  }
+
+  body.animation-level-1 .scrollable::-webkit-scrollbar-thumb {
+    transition: opacity .2s ease-in-out, background-color .15s ease-out;
+  }
+}

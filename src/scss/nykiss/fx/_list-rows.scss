@@ -1,0 +1,64 @@
+// NYKISS Gram: chat list rows. Colours only; row colour goes through --background (base uses background: var(--background) !important).
+@use "../../shared" as *;
+
+html.night {
+  .chatlist-chat {
+    &.menu-open {
+      --background: rgba(var(--nk-accent-rgb), .09);
+    }
+
+    // unread: accent pill, dark text (--badge-text-color from theme.scss)
+    &:not(.is-muted) .badge.unread,
+    &:not(.is-muted) .dialog-subtitle-badge-unread {
+      background-color: var(--nk-accent);
+      color: var(--badge-text-color);
+      box-shadow: 0 0 0 1px rgba(var(--nk-accent-rgb), .25);
+    }
+
+    // active row: base forces white badge with !important
+    &.active .badge.unread,
+    &.active .dialog-subtitle-badge-unread {
+      background-color: var(--nk-accent-hi) !important; // base active badge colours are !important
+      color: var(--badge-text-color) !important; // same
+    }
+
+    // mention: lighter fill + ring, distinct from unread
+    .mention,
+    .dialog-subtitle-badge-mention {
+      background-color: var(--nk-accent-hi) !important; // base .mention background is !important
+      color: var(--badge-text-color);
+      box-shadow: 0 0 0 2px rgba(var(--nk-accent-rgb), .22);
+    }
+
+    // muted: tinted pill, dimmer title and icon
+    &.is-muted {
+      .badge.unread,
+      .dialog-subtitle-badge-unread {
+        background-color: rgba(var(--nk-accent-rgb), .16);
+        color: var(--nk-accent-hi);
+      }
+
+      .row-title {
+        opacity: .72;
+      }
+    }
+
+    .dialog-muted-icon {
+      opacity: .6;
+    }
+
+    .dialog-subtitle-badge-pinned {
+      color: rgba(var(--nk-accent-rgb), .55);
+    }
+  }
+
+  &.no-touch .chatlist-chat:not(.active) {
+    &:hover {
+      --background: rgba(var(--nk-accent-rgb), .06);
+    }
+
+    &:active {
+      --background: rgba(var(--nk-accent-rgb), .11);
+    }
+  }
+}

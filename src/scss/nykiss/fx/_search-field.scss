@@ -1,0 +1,67 @@
+// NYKISS Gram: search fields. Colours, inset rings and caret only; no size changes.
+// .input-search has overflow:hidden, so rings are inset box-shadows (outer ones would be clipped).
+
+html.night {
+  .input-search-input {
+    color: var(--primary-text-color);
+    caret-color: var(--nk-accent-hi);
+  }
+
+  // Base focus colours come from --primary-color, which for gold is not guaranteed to equal --nk-accent.
+  .input-search-input.with-focus-effect:focus {
+    border-color: var(--nk-accent);
+    box-shadow: inset 0 0 0 1px rgba(var(--nk-accent-rgb), .28);
+    background-color: rgba(var(--nk-accent-rgb), .04);
+  }
+
+  .input-search-input.with-focus-effect:focus ~ .input-search-part {
+    color: var(--nk-accent-hi);
+  }
+
+  .input-search-placeholder {
+    color: var(--secondary-text-color);
+  }
+
+  &.no-touch {
+    // !important: base `.input-search-input:hover:not(:focus)` sets border-color with !important.
+    .input-search-input:not(:focus):hover {
+      border-color: rgba(var(--nk-accent-rgb), .35) !important;
+    }
+
+    .input-search-clear:hover,
+    .input-search-back:hover {
+      color: var(--nk-accent-hi);
+      --max-opacity: 1;
+    }
+
+    .topbar-search-left-container:not(.is-focused):hover .topbar-search-left-background {
+      box-shadow: 0 0 0 1px rgba(var(--nk-accent-rgb), .22);
+    }
+  }
+
+  .input-search-clear:active,
+  .input-search-back:active {
+    color: var(--nk-accent);
+  }
+
+  .input-search-clear:focus-visible,
+  .input-search-back:focus-visible {
+    outline: 2px solid var(--nk-accent-hi);
+    outline-offset: -2px;
+  }
+
+  .topbar-search-left-container.is-focused .topbar-search-left-background {
+    box-shadow: 0 0 0 1px rgba(var(--nk-accent-rgb), .45), 0 0 10px 0 rgba(0, 0, 0, .25);
+  }
+}
+
+// Colour feedback stays at reduced level too, so level 1+. Written by hand: the mixin would emit `body.animation-level-1 html.night`.
+html.night body.animation-level-1 {
+  .input-search-input {
+    transition: background-color .2s ease-in-out, border-color .2s ease-in-out, box-shadow .2s ease-out;
+  }
+
+  .input-search-placeholder {
+    transition: color .2s ease-out;
+  }
+}

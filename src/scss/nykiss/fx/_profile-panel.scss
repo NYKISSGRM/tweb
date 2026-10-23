@@ -1,0 +1,87 @@
+@use "../../shared" as *;
+
+// NYKISS: right column / profile panel. Colours and edges only, no box or width changes.
+// (#column-right itself is not touched: it already has its own card shadow and radius.)
+
+// header divider under accent tone, only on the filled header (not over the avatar photo)
+html.night #column-right .scrollable-y-bordered:not(.scrolled-start) .sidebar-header.header-filled:after {
+  background-color: rgba(var(--nk-accent-rgb), .22);
+}
+
+// tab strip plate
+html.night #column-right .search-super-tabs-scrollable {
+  box-shadow: 0 1px 0 var(--border-color);
+}
+
+html.night #column-right .search-super-tabs .menu-horizontal-div-item {
+  &.active .menu-horizontal-div-item-background {
+    box-shadow: 0 0 10px rgba(var(--nk-accent-rgb), .55);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width, 2px) solid var(--focus-ring-color, rgba(var(--nk-accent-rgb), .75));
+    outline-offset: -2px;
+    border-radius: 6px;
+  }
+}
+
+html.night.no-touch #column-right .search-super-tabs .menu-horizontal-div-item:hover:not(.active) {
+  background-color: rgba(var(--nk-accent-rgb), .06);
+}
+
+// section cards: hairline edge instead of the soft blur
+html.night #column-right .sidebar-left-section:not(.no-shadow) {
+  box-shadow: 0 0 0 1px var(--border-color);
+}
+
+html.night #column-right .sidebar-left-section .row + .row {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+
+// list rows
+html.no-touch.night #column-right .row:not(.chatlist-chat):not(.is-dragging) {
+  // plain transition: animation-level() cannot be nested under html.night (emits body.animation-level-N html.night ...)
+  transition: background-color .15s ease-out;
+
+  &:hover {
+    background-color: rgba(var(--nk-accent-rgb), .06);
+  }
+
+  &:active {
+    background-color: rgba(var(--nk-accent-rgb), .1);
+  }
+}
+
+html.night.a11y #column-right .row:focus-visible {
+  // full-strength 2px ring: a 1px 60% ring falls under the 3:1 non-text contrast
+  box-shadow: inset 0 0 0 2px var(--nk-accent-hi);
+}
+
+// animations off: colour feedback switches at once
+html.no-touch.night body.animation-level-0 #column-right .row:not(.chatlist-chat):not(.is-dragging) {
+  transition: none;
+}
+
+// floating action button
+html.night #column-right .btn-corner {
+  // base .btn-corner has box-shadow:none !important (_button.scss), no other way
+  box-shadow: 0 6px 18px -4px rgba(var(--nk-accent-rgb), .55), 0 0 0 1px rgba(var(--nk-accent-rgb), .35) !important;
+
+  &.is-hidden {
+    // no glow bleeding into view while the button is slid out
+    box-shadow: none !important;
+  }
+
+  &:active {
+    filter: brightness(.92);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nk-accent-hi);
+    outline-offset: 2px;
+  }
+}
+
+html.night.no-touch #column-right .btn-corner:hover {
+  filter: brightness(1.08);
+}
