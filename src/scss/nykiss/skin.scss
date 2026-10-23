@@ -232,3 +232,101 @@ html.night {
     }
   }
 }
+
+// First-run hint (all themes): until the site has loaded once, the NYKISS menu item is outlined in the accent
+// (drawn along its path when the menu opens, then a few soft pulses) and the hamburger carries a dot.
+// html.nk-web-unseen is set/removed by nykissWeb.ts. The colors fall back to the gold when no night palette is set.
+html {
+  --nk-hint: var(--nk-accent, #c9a227);
+  --nk-hint-hi: var(--nk-accent-hi, #e2c25a);
+  --nk-hint-rgb: var(--nk-accent-rgb, 226, 194, 90);
+}
+
+.btn-menu-item .nk-hint-ring,
+.btn-menu-item .nk-hint-dot { display: none; }
+
+html.nk-web-unseen {
+  .btn-menu-item.nk-menu-new {
+    position: relative;
+
+    // the label span is position:relative in the base menu CSS: without this the ring wraps the word, not the item
+    .btn-menu-item-text { position: static; }
+
+    .nk-hint-ring {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+
+      rect {
+        x: .75px;
+        y: .75px;
+        width: calc(100% - 1.5px);
+        height: calc(100% - 1.5px);
+        rx: 12px;
+        ry: 12px;
+        fill: none;
+        stroke: var(--nk-hint);
+        stroke-width: 1.5px;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+      }
+    }
+
+    .nk-hint-dot {
+      display: block;
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      width: 7px;
+      height: 7px;
+      margin-top: -3.5px;
+      border-radius: 50%;
+      background: var(--nk-hint-hi);
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+
+  // the menu is open (the .btn-menu gets .active): draw the outline, then pulse a few times, then rest
+  .btn-menu.active .btn-menu-item.nk-menu-new {
+    .nk-hint-ring {
+      animation: nk-hint-glow 2.2s 1.6s cubic-bezier(.45, 0, .55, 1) 3;
+      rect { animation: nk-hint-draw 1s .35s cubic-bezier(.4, 0, .2, 1) forwards; }
+    }
+    .nk-hint-dot { animation: nk-hint-fade .4s 1.3s forwards; }
+  }
+
+  .btn-menu-toggle::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    right: 5px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--nk-hint-hi);
+    box-shadow: 0 0 0 2px var(--surface-color, var(--background-color, #fff));
+    pointer-events: none;
+    animation: nk-hint-dot 2.2s cubic-bezier(.45, 0, .55, 1) infinite;
+  }
+  .btn-menu-toggle.menu-open::after { display: none; }
+}
+
+@keyframes nk-hint-draw { to { stroke-dashoffset: 0; } }
+@keyframes nk-hint-fade { to { opacity: 1; } }
+@keyframes nk-hint-glow {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(var(--nk-hint-rgb), 0)); }
+  50% { filter: drop-shadow(0 0 4px rgba(var(--nk-hint-rgb), .55)); }
+}
+@keyframes nk-hint-dot { 50% { transform: scale(1.25); opacity: .75; } }
+
+@media (prefers-reduced-motion: reduce) {
+  html.nk-web-unseen .btn-menu-item.nk-menu-new .nk-hint-ring rect { stroke-dashoffset: 0 !important; animation: none !important; }
+  html.nk-web-unseen .btn-menu-item.nk-menu-new .nk-hint-ring { animation: none !important; }
+  html.nk-web-unseen .btn-menu-item.nk-menu-new .nk-hint-dot { opacity: 1; animation: none !important; }
+  html.nk-web-unseen .btn-menu-toggle::after { animation: none; }
+}

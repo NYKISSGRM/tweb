@@ -15,7 +15,7 @@ import {AppSettingsTab} from '@components/solidJsTabs';
 import {AppNewChannelTab} from '@components/solidJsTabs/tabs';
 import {AppContactsTab} from '@components/solidJsTabs/tabs';
 import {AppCallsTab} from '@components/solidJsTabs/tabs';
-import {openNykissWeb} from '@lib/nykiss/nykissWeb';
+import {createNykissMenuLabel, openNykissWeb} from '@lib/nykiss/nykissWeb';
 import {AppArchivedTab} from '@components/solidJsTabs/tabs';
 import createNewGroupTab from '@components/sidebarLeft/tabs/createNewGroupTab';
 import I18n, {i18n} from '@lib/langPack';
@@ -769,7 +769,8 @@ export class AppSidebarLeft extends SidebarSlider {
       verify: () => IS_CALL_SUPPORTED || IS_CONFERENCE_CALL_SUPPORTED
     }, {
       icon: 'webview',
-      regularText: 'NYKISS',
+      regularText: createNykissMenuLabel(),
+      className: 'nk-menu-new',
       onClick: () => {
         closeTabsBefore(() => {
           openNykissWeb();

@@ -8,6 +8,8 @@
 
 import appImManager from '@lib/appImManager';
 import {INTERNAL_LINK_TYPE} from '@lib/internalLink';
+import rootScope from '@lib/rootScope';
+import PasscodeLockScreenController from '@components/passcodeLock/passcodeLockScreenController';
 import {getKey, promptConnect} from '@lib/nykiss/quickBubble';
 import {getGramSession, resetGramThrottle, clearGramSession, GramAuthError} from '@lib/nykiss/wcrmAuth';
 
@@ -36,6 +38,7 @@ let depth = 0;
 let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
 let onMessage: ((e: MessageEvent) => void) | null = null;
 let frameTimer = 0;
+let frameReady = false; // the iframe has announced itself (also while preloading)
 
 // ---- t.me links ---------------------------------------------------------------
 
@@ -104,6 +107,7 @@ function destroyFrame() {
     iframe = null;
   }
   depth = 0;
+  frameReady = false;
   setIcon();
 }
 
@@ -120,7 +124,7 @@ function ensureOverlay() {
   overlay = document.createElement('div');
   overlay.className = 'nykiss-web-overlay';
   overlay.style.cssText = [
-    'position:fixed', 'inset:0', 'z-index:100000',
+    'position:fixed', 'inset:0', 'z-index:99999',
     'display:none', 'flex-direction:column',
     'background:#070807'
   ].join(';');
@@ -246,6 +250,8 @@ function handleMessage(e: MessageEvent) {
 
   switch(d.type) {
     case 'nk:ready': {
+      frameReady = true;
+      if(visible) markNykissWebSeen(); // a hidden preload does not count: nobody has seen it
       const frame = iframe;
       getGramSession().then((s) => {
         if(iframe !== frame || !frame.contentWindow) return; // the iframe was closed or replaced
@@ -307,9 +313,91 @@ export function closeNykissWeb() {
   visible = false;
 }
 
-export function openNykissWeb() {
+// ---- first-run hint ------------------------------------------------------------
+// Until the site has really loaded once for this account, the NYKISS menu item is outlined in gold and the
+// hamburger carries a dot (CSS: html.nk-web-unseen). The flag is per account (rootScope.myId) when the id is known.
+
+const SEEN_KEY = 'nk_web_seen';
+const AUTO_KEY = 'nk_web_auto_n'; // how many times it opened by itself without a successful load
+const AUTO_MAX = 2;
+let seenInMemory = false;
+
+const seenKey = () => {
+  const id = +rootScope.myId;
+  return id ? SEEN_KEY + '_' + id : SEEN_KEY;
+};
+
+function storageWorks() {
+  try {
+    localStorage.setItem('nk_probe', '1');
+    localStorage.removeItem('nk_probe');
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+// No localStorage: it cannot be remembered, so the hint stays visible (false) for this session only.
+export function isNykissWebSeen() {
+  if(seenInMemory) return true;
+  try { return localStorage.getItem(seenKey()) === '1'; } catch(e) { return false; }
+}
+
+function markNykissWebSeen() {
+  seenInMemory = true;
+  try { localStorage.setItem(seenKey(), '1'); } catch(e) {}
+  document.documentElement.classList.remove('nk-web-unseen');
+}
+
+// The menu label: text + the outline (an SVG rect drawn along its path) + a dot. Only visible with html.nk-web-unseen.
+export function createNykissMenuLabel() {
+  const span = document.createElement('span');
+  span.textContent = 'NYKISS';
+  span.insertAdjacentHTML('beforeend',
+    '<svg class="nk-hint-ring" aria-hidden="true"><rect pathLength="1" rx="12" ry="12"/></svg><i class="nk-hint-dot" aria-hidden="true"></i>');
+  return span;
+}
+
+function hasBlocker() {
+  if(document.hidden) return true;
+  if(PasscodeLockScreenController.getIsLocked() || document.querySelector('.passcode-lock-screen')) return true;
+  // any popup/modal, an open menu, the context menu, a media viewer
+  return !!document.querySelector('.popup.active, .btn-menu.active, .media-viewer-whole, .modal.active');
+}
+
+// Called once at start. Shows the hint after login and, once, opens the site by itself, when Gram is logged in, the chats are
+// loaded and nothing is in the way. Not marked as seen until the iframe says nk:ready (or the person clicks the item).
+export function initNykissHint() {
+  let chatsLoaded = false;
+  rootScope.addEventListener('dialogs_multiupdate', () => { chatsLoaded = true; });
+
+  let loggedSince = 0;
+  let tries = 0;
+  const tick = window.setInterval(() => {
+    if(!+rootScope.myId) return; // not logged in
+    if(!loggedSince) {
+      loggedSince = Date.now();
+      if(!isNykissWebSeen()) document.documentElement.classList.add('nk-web-unseen');
+    }
+    if(isNykissWebSeen()) { window.clearInterval(tick); return; }
+    if(++tries > 150) { window.clearInterval(tick); return; } // ~5 minutes, then only the hint stays
+    if(visible || !storageWorks()) return;
+    if(!chatsLoaded && Date.now() - loggedSince < 20000) return;
+    if(Date.now() - loggedSince < 4000 || hasBlocker()) return;
+    let n = 0;
+    try { n = +localStorage.getItem(AUTO_KEY) || 0; } catch(e) {}
+    window.clearInterval(tick);
+    if(n >= AUTO_MAX) return;
+    try { localStorage.setItem(AUTO_KEY, String(n + 1)); } catch(e) {}
+    openNykissWeb(true);
+  }, 2000);
+}
+
+// auto: opened by the hint, not by the person; only a real click or a loaded site turns the hint off.
+export function openNykissWeb(auto = false) {
   if(visible) return; // already open
   visible = true;
+  if(!auto) markNykissWebSeen();
   resetGramThrottle();
   ensureOverlay();
   overlay.style.display = 'flex';
@@ -320,6 +408,7 @@ export function openNykissWeb() {
     startFrame();
   } else {
     // the preloaded iframe: it has the session already if it was quick enough, otherwise it asks itself
+    if(frameReady) markNykissWebSeen();
     setIcon();
   }
 
