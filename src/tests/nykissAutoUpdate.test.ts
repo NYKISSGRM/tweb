@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {parseMainScript, shouldReloadNow} from '@lib/nykiss/autoUpdate';
+import {hasBusyUi, parseMainScript, shouldReloadNow} from '@lib/nykiss/autoUpdate';
 
 const base = {hasNewBuild: true, hidden: false, idleMs: 0, busy: false, lastReloadAgoMs: 60 * 60 * 1000};
 
@@ -29,5 +29,30 @@ describe('autoUpdate', () => {
 
   it('does not loop when the build keeps differing', () => {
     expect(shouldReloadNow({...base, hidden: true, lastReloadAgoMs: 60 * 1000})).toBe(false);
+  });
+
+  describe('hasBusyUi', () => {
+    const mount = (html: string) => {
+      const root = document.createElement('div');
+      root.innerHTML = html;
+      return root;
+    };
+
+    it('is quiet on an idle chat', () => {
+      expect(hasBusyUi(mount('<div class="chat-input"><div class="input-message-input"></div></div>'))).toBe(false);
+    });
+
+    it('holds the reload while a voice message is being recorded', () => {
+      expect(hasBusyUi(mount('<div class="chat-input is-recording"></div>'))).toBe(true);
+    });
+
+    it('holds the reload while a message is still being sent', () => {
+      expect(hasBusyUi(mount('<div class="bubble is-outgoing"></div>'))).toBe(true);
+      expect(hasBusyUi(mount('<div class="bubble is-sending"></div>'))).toBe(true);
+    });
+
+    it('holds the reload with a draft', () => {
+      expect(hasBusyUi(mount('<div class="input-message-input">hi</div>'))).toBe(true);
+    });
   });
 });

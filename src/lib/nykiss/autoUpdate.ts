@@ -30,9 +30,16 @@ function runningMainScript() {
   return src?.match(/(index-[A-Za-z0-9_-]+\.js)/)?.[1];
 }
 
+// A voice or video note being recorded and a message still on its way out live only in the page: a reload loses them.
+export const BUSY_SELECTOR = '.popup.active, .media-viewer-whole, .group-call, .call-container, .chat-input.is-recording, .bubble.is-outgoing, .bubble.is-sending';
+
+export function hasBusyUi(root: ParentNode = document) {
+  const draft = root.querySelector('.input-message-input')?.textContent?.trim();
+  return !!draft || !!root.querySelector(BUSY_SELECTOR);
+}
+
 function isBusy() {
-  const draft = document.querySelector('.input-message-input')?.textContent?.trim();
-  return !!draft || !!document.querySelector('.popup.active, .media-viewer-whole, .group-call, .call-container');
+  return hasBusyUi();
 }
 
 function lastReloadAgo() {
