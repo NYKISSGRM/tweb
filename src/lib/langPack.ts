@@ -159,7 +159,8 @@ namespace I18n {
 
   // NYKISS: the whole team works in Russian, so every browser gets the Russian pack once. The flag is set only after
   // it applied, so a failed attempt retries on the next load, and a language picked later by the user is kept.
-  const NK_LANG_FLAG = 'nk_lang_ru_v1';
+  // v2: clients that kept English after v1 (flag set, pack never stuck) get switched once more.
+  const NK_LANG_FLAG = 'nk_lang_ru_v2';
   function switchToRussianOnce(currentCode: string) {
     setTimeout(async() => {
       try {
