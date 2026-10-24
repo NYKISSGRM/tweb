@@ -60,7 +60,7 @@ const COUNTER_FILTERS: MessagesFilter[] = [
   {_: 'inputMessagesFilterUrl'}
 ];
 
-export type ProfileCounterType = 'media' | 'files' | 'links';
+export type ProfileCounterType = 'members' | 'media' | 'files' | 'links';
 
 type CounterRow = {
   type: ProfileCounterType,
@@ -70,10 +70,14 @@ type CounterRow = {
 };
 
 /** The rows under the open-app button. A kind with nothing in it gets no row. */
-export function getProfileCounterRows(counts: {photos?: number, videos?: number, files?: number, links?: number}): CounterRow[] {
+export function getProfileCounterRows(counts: {members?: number, photos?: number, videos?: number, files?: number, links?: number}): CounterRow[] {
   const photos = counts.photos || 0;
   const videos = counts.videos || 0;
   const rows: CounterRow[] = [];
+  if(counts.members) {
+    rows.push({type: 'members', icon: 'group', key: 'Members', count: counts.members});
+  }
+
   if(photos + videos) {
     rows.push({
       type: 'media',
@@ -239,6 +243,9 @@ async function blockPeer(peerId: PeerId, hide: () => void) {
 function Counters(props: {options: ProfilePopupOptions}) {
   const popup = useContext(PopupContext);
   const {peerId, threadId} = props.options;
+  const peer = usePeer(peerId);
+  // a channel's subscribers are not a list anyone can open
+  const members = () => peerId.isAnyChat() && !(peer as any)?.pFlags?.broadcast ? (peer as any)?.participants_count : undefined;
 
   const [rows] = createResource(async() => {
     try {
@@ -256,10 +263,12 @@ function Counters(props: {options: ProfilePopupOptions}) {
     }
   });
 
+  const allRows = () => [...getProfileCounterRows({members: members()}), ...(rows() || [])];
+
   return (
-    <Show when={rows()?.length}>
+    <Show when={allRows().length}>
       <Section noDelimiter class="profile-popup-counters">
-        <For each={rows()}>
+        <For each={allRows()}>
           {(row) => (
             <Row
               clickable={() => {

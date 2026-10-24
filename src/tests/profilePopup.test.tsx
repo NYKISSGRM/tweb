@@ -102,6 +102,7 @@ describe('profile popup', () => {
       ['media', 'Photos', 1],
       ['links', 'Links', 157]
     ]);
+    expect(getProfileCounterRows({members: 27, photos: 1})[0]).toMatchObject({type: 'members', key: 'Members', count: 27});
     expect(getProfileCounterRows({photos: 2, videos: 3})[0]).toMatchObject({key: 'MediaFiles', count: 5});
     expect(getProfileCounterRows({})).toEqual([]);
   });
