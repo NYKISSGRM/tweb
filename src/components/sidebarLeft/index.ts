@@ -728,7 +728,20 @@ export class AppSidebarLeft extends SidebarSlider {
     const accentText = document.createElement('span');
     accentText.textContent = 'Цвет: ' + (ACCENTS.find((a) => a.id === getAccent())?.title || '');
 
+    const profileText = document.createElement('span');
+    profileText.textContent = 'Мой профиль';
+
     const menuButtons: (ButtonMenuItemOptions & {verify?: () => boolean | Promise<boolean>})[] = [{
+      icon: 'user',
+      regularText: profileText,
+      onClick: () => {
+        setTimeout(async() => {
+          const {default: showProfilePopup} = await import('@components/popups/profile');
+          showProfilePopup({peerId: rootScope.myId});
+        }, 0);
+      },
+      verify: () => !!drawer
+    }, {
       icon: 'plus',
       text: 'MultiAccount.AddAccount',
       onClick: this.addAccount,
