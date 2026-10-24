@@ -38,8 +38,8 @@ describe('accounts folded state', () => {
     const data = new Map<string, string>();
     const storage = {
       getItem: (k: string) => data.get(k) ?? null,
-      setItem: (k: string, v: string) => void data.set(k, v),
-      removeItem: (k: string) => void data.delete(k)
+      setItem: (k: string, v: string): void => void data.set(k, v),
+      removeItem: (k: string): void => void data.delete(k)
     };
     expect(readAccountsCollapsed(storage)).toBe(false);
     writeAccountsCollapsed(true, storage);

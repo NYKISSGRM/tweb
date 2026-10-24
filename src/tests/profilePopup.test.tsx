@@ -16,22 +16,22 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@lib/langPack', () => ({i18n: (key: string) => key, default: {}}));
 vi.mock('@lib/rootScope', () => ({default: {myId: 1, managers: {}}}));
 vi.mock('@lib/appImManager', () => ({default: {}}));
-vi.mock('@lib/solidjs/hotReloadGuardProvider', () => ({default: () => undefined}));
-vi.mock('@components/peerProfile', () => ({renderPeerProfile: () => document.createElement('div')}));
-vi.mock('@components/iconTsx', () => ({IconTsx: () => <span />}));
-vi.mock('@components/rowTsx', () => ({default: () => <div />}));
-vi.mock('@components/section', () => ({default: () => <div />}));
-vi.mock('@components/ripple', () => ({default: () => undefined}));
-vi.mock('@components/buttonMenuToggle', () => ({default: ({container}: any) => container}));
-vi.mock('@components/confirmationPopup', () => ({default: () => Promise.resolve()}));
+vi.mock('@lib/solidjs/hotReloadGuardProvider', () => ({default: (): void => undefined}));
+vi.mock('@components/peerProfile', () => ({renderPeerProfile: (): HTMLElement => document.createElement('div')}));
+vi.mock('@components/iconTsx', () => ({IconTsx: (): any => <span />}));
+vi.mock('@components/rowTsx', () => ({default: (): any => <div />}));
+vi.mock('@components/section', () => ({default: (): any => <div />}));
+vi.mock('@components/ripple', () => ({default: (): void => undefined}));
+vi.mock('@components/buttonMenuToggle', () => ({default: ({container}: any): any => container}));
+vi.mock('@components/confirmationPopup', () => ({default: (): Promise<void> => Promise.resolve()}));
 vi.mock('@components/peerTitle', () => ({default: class {element = document.createElement('span');}}));
-vi.mock('@components/popups/reportAd', () => ({showPeerReport: () => undefined}));
-vi.mock('@components/toast', () => ({toastNew: () => undefined}));
-vi.mock('@helpers/copyContact', () => ({copyTmeLink: () => undefined}));
-vi.mock('@helpers/solid/subscribeOn', () => ({subscribeOn: () => () => undefined}));
-vi.mock('@stores/fullPeers', () => ({useFullPeer: () => () => undefined}));
-vi.mock('@stores/peers', () => ({usePeer: () => ({})}));
-vi.mock('@appManagers/utils/peers/getPeerActiveUsernames', () => ({default: () => []}));
+vi.mock('@components/popups/reportAd', () => ({showPeerReport: (): void => undefined}));
+vi.mock('@components/toast', () => ({toastNew: (): void => undefined}));
+vi.mock('@helpers/copyContact', () => ({copyTmeLink: (): void => undefined}));
+vi.mock('@helpers/solid/subscribeOn', () => ({subscribeOn: (): (() => void) => (): void => undefined}));
+vi.mock('@stores/fullPeers', () => ({useFullPeer: (): (() => void) => (): void => undefined}));
+vi.mock('@stores/peers', () => ({usePeer: (): object => ({})}));
+vi.mock('@appManagers/utils/peers/getPeerActiveUsernames', () => ({default: (): string[] => []}));
 
 vi.mock('@components/popups/indexTsx', () => {
   const PopupElement = (props: any) => {
