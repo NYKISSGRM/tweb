@@ -382,12 +382,45 @@ async function migrateLegacyHeat() {
 
 // localStorage can throw (private mode, blocked site data): the key then lives for this page load only.
 let memKey = '';
-export function getKey(): string {
+function getKeyRaw(): string {
   try { return localStorage.getItem(KEY_LS) || ''; } catch(e) { return memKey; }
+}
+/** Рабочий ключ. Пусто, если ключа нет ИЛИ сервер его отклонил (тогда опросы молчат, чтобы не сжигать лимит 401 на IP). */
+export function getKey(): string {
+  return keyRejected ? '' : getKeyRaw();
 }
 export function setKey(k: string | null) {
   memKey = k || '';
   try { k ? localStorage.setItem(KEY_LS, k) : localStorage.removeItem(KEY_LS); } catch(e) {}
+  keyRejected = false; updateKeyState();
+}
+
+// 401: ключ НЕ стираем молча (раньше воркер просто «пропадал» без объяснений и ничего не мог понять).
+// Помечаем «отклонён»: опросы перестают его слать (getKey() отдаёт пусто), на кнопке N горит метка, в меню текст.
+// Ключ остаётся в localStorage; новый ключ (setKey) или авто-ключ по подписи Telegram снимают метку.
+// Если отклонённый ключ перебит свежим, пришедшим пока шёл запрос, метку не ставим.
+let keyRejected = false;
+export function isKeyRejected(): boolean { return keyRejected; }
+export function markKeyRejected(sent?: string) {
+  if(sent !== undefined && sent !== getKeyRaw()) return;
+  keyRejected = true;
+  updateKeyState();
+}
+function updateKeyState() {
+  try { fabEl?.classList.toggle('is-keybad', keyRejected); fabEl?.setAttribute('title', keyRejected ? 'Ключ не подходит — открой меню' : ''); } catch(e) {}
+}
+
+// ---- hello: «я в сети» даже если модуль team не запущен ----
+let lastHelloAt = 0;
+export function noteHello() { lastHelloAt = Date.now(); }
+export async function heartbeat(force = false) {
+  if(document.hidden || !getKey()) return;
+  if(!force && Date.now() - lastHelloAt < 55_000) return;
+  lastHelloAt = Date.now();
+  try {
+    const id = Number(rootScope.myId);
+    await apiFetch('/messenger/hello', {method: 'POST', body: JSON.stringify(id ? {telegram_id: id} : {})});
+  } catch(e) { /* сеть/5xx: следующий тик */ }
 }
 
 // ---- API ---------------------------------------------------------------------
@@ -409,10 +442,11 @@ export async function fetchTimeout(url: string, init: RequestInit = {}): Promise
 
 // Errors carry a short code in `message`: bad-key · network · http-<status>
 export async function apiFetch(path: string, opts: RequestInit = {}): Promise<any> {
-  const headers: Record<string, string> = {'X-NYKISS-Key': getKey()};
+  const sentKey = getKey();
+  const headers: Record<string, string> = {'X-NYKISS-Key': sentKey, 'X-NYKISS-Build': buildId()};
   if(opts.body) headers['Content-Type'] = 'application/json';
   const res = await fetchTimeout(API + path, {...opts, headers: {...headers, ...(opts.headers as any)}});
-  if(res.status === 401) { setKey(''); throw new Error('bad-key'); }
+  if(res.status === 401) { markKeyRejected(sentKey); throw new Error('bad-key'); }
   if(!res.ok) throw new Error('http-' + res.status);
   if(res.status === 204) return null;
   try {
@@ -443,6 +477,12 @@ async function getOpenMammoth(): Promise<OpenMammoth | null> {
 const STYLE_ID = 'nykiss-quick-bubble-style';
 // shown in the menu header and the console: the first thing to check when something "does not update"
 const BUILD: string = String((import.meta as any).env?.VITE_NYKISS_SHA || 'dev').slice(0, 7);
+/** Идентификатор запущенной сборки: SHA, а если его нет в бандле, имя главного скрипта (index-<hash>.js). Идёт в X-NYKISS-Build. */
+export function buildId(): string {
+  if(BUILD !== 'dev') return BUILD;
+  const src = document.querySelector<HTMLScriptElement>('script[type="module"][src*="index-"]')?.getAttribute('src');
+  return src?.match(/index-([A-Za-z0-9_-]+)\.js/)?.[1] || 'dev';
+}
 
 const SPRITE = `<svg id="nykiss-qb-sprite" width="0" height="0" style="position:absolute" aria-hidden="true">
 <symbol id="ic-cold" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9M9.5 4.8 12 7l2.5-2.2M9.5 19.2 12 17l2.5 2.2"/></symbol>
@@ -528,6 +568,7 @@ function injectStyle() {
 .nykiss-qb__chip.is-team svg{color:var(--nq-gold)}
 /* the button can be dragged anywhere; the chip and the menu open towards the free side */
 .nykiss-qb__fab{touch-action:none}
+.nykiss-qb__fab.is-keybad::after{content:'!';position:absolute;top:-3px;right:-3px;width:16px;height:16px;border-radius:50%;background:#e5532d;color:#fff;font:700 11px/16px system-ui,sans-serif;text-align:center}
 .nykiss-qb.is-dragging .nykiss-qb__fab{cursor:grabbing;transform:scale(1.06);transition:none}
 .nykiss-qb.is-dragging .nykiss-qb__chip,.nykiss-qb.is-dragging .nykiss-qb__menu{display:none}
 .nykiss-qb.is-left .nykiss-qb__chip,.nykiss-qb.is-left .nykiss-qb__menu{right:auto;left:0}
@@ -811,7 +852,9 @@ function askKey(error?: string): Promise<string | null> {
     title.textContent = 'Ключ NYKISS Gram';
     title.style.cssText = 'font-size:17px;font-weight:600;margin-bottom:6px';
     const hint = document.createElement('div');
-    hint.textContent = 'Вставь ключ (Настройки → NYKISS Gram — ключ в мини-аппе).';
+    hint.textContent = keyRejected
+      ? 'Сервер не принял прежний ключ (его могли перевыпустить). Вставь актуальный: Настройки → NYKISS Gram — ключ в мини-аппе.'
+      : 'Вставь ключ (Настройки → NYKISS Gram — ключ в мини-аппе).';
     hint.style.cssText = 'color:#9a927d;margin-bottom:12px';
     const input = document.createElement('input');
     input.type = 'text';
@@ -1049,7 +1092,9 @@ async function renderMenu() {
 
   if(!getKey()) {
     setMenu('nokey', '', menuHead() +
-      '<div class="nykiss-qb__hint">Подключи CRM один раз, и мамонтов можно будет <b>добавлять прямо из чата</b> на свой аккаунт.</div>' +
+      (keyRejected
+        ? '<div class="nykiss-qb__hint"><b>Сервер не принял ключ.</b> Статистика и статус «в сети» не уходят, пока ты не вставишь актуальный ключ.</div>'
+        : '<div class="nykiss-qb__hint">Подключи CRM один раз, и мамонтов можно будет <b>добавлять прямо из чата</b> на свой аккаунт.</div>') +
       `<button class="nykiss-qb__cta" data-a="connect">${ic('link')}Подключить CRM</button>`);
     menuEl.querySelector('[data-a="connect"]').addEventListener('click', e => { e.stopPropagation(); promptConnect(); });
     return;
@@ -1227,6 +1272,7 @@ export function initQuickBubble() {
   (window as any).nykissDebug = nykissDebug;
   (window as any).nykissRepair = nykissRepair;
   console.info('[nykiss] build', BUILD);
+  updateKeyState();
 
   sync();
   watchAvatars();
@@ -1247,7 +1293,10 @@ export function initQuickBubble() {
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({preloadNykissWeb}) => preloadNykissWeb()); }, 4000);
   window.setTimeout(() => { import('@lib/nykiss/nykissWeb').then(({initNykissHint}) => initNykissHint()); }, 1000);
   window.setTimeout(() => { import('@lib/nykiss/autoUpdate').then(({initAutoUpdate}) => initAutoUpdate()); }, 8000);
-  window.setInterval(() => { if(!document.hidden) refreshHeat(); }, 60000);
+  window.setInterval(() => { if(!document.hidden) { refreshHeat(); heartbeat(); } }, 60000);
+  // вернулись на вкладку: hello сразу (не ждём минутный тик), троттлинг 55 с внутри heartbeat
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) heartbeat(); });
+  window.setTimeout(() => heartbeat(true), 6000);
   initPinBot();
   initStartFolder();
   document.addEventListener('visibilitychange', () => { if(!document.hidden) sync(); });

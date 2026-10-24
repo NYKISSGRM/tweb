@@ -8,7 +8,7 @@
 
 import rootScope from '@lib/rootScope';
 import {toast} from '@components/toast';
-import {API, getKey, setKey} from '@lib/nykiss/quickBubble';
+import {API, buildId, getKey, markKeyRejected, noteHello} from '@lib/nykiss/quickBubble';
 import {TeamMember, buildIndex, memberTitle, pollDelay, titleFire, titleRank} from '@lib/nykiss/teamModel';
 
 const NO_KEY_MS = 5_000;    // ключа нет: раз в 5 с читаем localStorage (копейки), ждём, пока его подключат
@@ -53,13 +53,13 @@ async function request(path: string, init: RequestInit = {}): Promise<Reply> {
   try {
     res = await fetchTimeout(API + path, {
       ...init,
-      headers: {'X-NYKISS-Key': key, ...(init.body ? {'Content-Type': 'application/json'} : {})}
+      headers: {'X-NYKISS-Key': key, 'X-NYKISS-Build': buildId(), ...(init.body ? {'Content-Type': 'application/json'} : {})}
     });
   } catch(e) {
     return {status: 'retry'};
   }
   if(res.status === 401) {
-    if(getKey() === key) setKey('');   // как api() в quickBubble; свежий ключ, введённый пока шёл запрос, не трогаем
+    markKeyRejected(key);   // ключ не стираем, а помечаем отклонённым (см. quickBubble); свежий ключ, пришедший пока шёл запрос, не трогаем
     return {status: 'auth'};
   }
   if(res.status === 429) {
@@ -116,6 +116,7 @@ async function cycle(): Promise<Reply> {
   const id = Number(rootScope.myId);
   const hi = await request('/messenger/hello', {method: 'POST', body: JSON.stringify(id ? {telegram_id: id} : {})});
   if(hi.status !== 'ok') return hi;
+  noteHello();
   checkIdentity(id, hi.data);
   const tm = await request('/messenger/team');
   if(tm.status === 'ok') apply(tm.data);
@@ -253,5 +254,8 @@ export function initTeam() {
   watch();
   plan(0);
   // вернулись на вкладку: опрашиваем не раньше, чем положено (пауза после ошибок и 429 соблюдается)
-  document.addEventListener('visibilitychange', () => { if(!document.hidden) plan(Math.max(0, nextAt - Date.now())); });
+  document.addEventListener('visibilitychange', () => {
+    // hello сразу при возврате на вкладку; пауза после 429/ошибок по-прежнему соблюдается (blockedUntil)
+    if(!document.hidden) plan(Math.max(0, blockedUntil - Date.now()));
+  });
 }

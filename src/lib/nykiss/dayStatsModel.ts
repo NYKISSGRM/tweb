@@ -24,3 +24,25 @@ export function isNewDialogCandidate(o: CandidateInput): boolean {
   // a message from before today is replayed history, not a dialog that started today
   return o.date >= o.dayStart;
 }
+
+// ---- catch-up (scan of dialogs after the tab was closed) ----
+
+/** Server accepts only today and yesterday (MSK): `day must be today or yesterday`. */
+export const CATCHUP_DAYS_BACK = 1;
+export const CATCHUP_OVERLAP_SEC = 3600;
+
+/** Start of the scan window, unix seconds: yesterday 00:00 MSK, or last successful scan minus an hour, whichever is later. */
+export function catchUpSince(todayKey: string, lastSyncSec: number): number {
+  const yesterdayStart = mskDayStartSec(todayKey) - 86400 * CATCHUP_DAYS_BACK;
+  return Math.max(yesterdayStart, lastSyncSec - CATCHUP_OVERLAP_SEC);
+}
+
+/** «2026-10-22» for a unix-seconds date, MSK (+03:00, no DST). */
+export function mskDayOfSec(sec: number): string {
+  return new Date((sec + 3 * 3600) * 1000).toISOString().slice(0, 10);
+}
+
+/** Dialog ordering index is `date * 0x10000 + n`; pinned dialogs carry a fake high index and must not stop the scan. */
+export function dialogDateFromIndex(index: number): number {
+  return Math.floor(index / 0x10000);
+}

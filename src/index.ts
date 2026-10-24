@@ -712,13 +712,7 @@ if(import.meta.env.DEV) {
       await bootstrapIm();
     }
 
-    // NYKISS: mount the floating Quick Bubble once the IM page is up.
-    import('./lib/nykiss/quickBubble').then(({initQuickBubble}) => initQuickBubble());
-    // NYKISS: team badges on colleagues' avatars + «Профиль NYKISS» menu entry.
-    import('./lib/nykiss/team').then(({initTeam}) => initTeam());
-    // NYKISS: count the new private dialogs of the day and report them to the CRM.
-    import('./lib/nykiss/dayStats').then(({initDayStats}) => initDayStats());
-    // NYKISS: report why Telegram ended a session, if it does.
-    import('./lib/nykiss/sessionWatch').then(({initSessionWatch}) => initSessionWatch());
+    // NYKISS: Quick Bubble, команда, статистика дня, sessionWatch (каждый import с .catch, см. nykissInit.ts)
+    import('./lib/nykiss/nykissInit').then(({startNykiss}) => startNykiss()).catch((e) => console.warn('[nykiss] init failed', e));
   }
 });

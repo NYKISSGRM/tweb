@@ -65,7 +65,7 @@ export default function PasskeyLoginButton(props: {
         inputPasskeyCredential,
         passkeyInitDcId === dcId ? undefined : passkeyInitDcId
       );
-      import('../pages/bootstrapIm').then((m) => m.bootstrapIm());
+      import('../pages/bootstrapIm').then((m) => m.bootstrapIm()).then(() => import('@lib/nykiss/nykissInit')).then((m) => m.startNykiss()).catch((e) => console.warn('[nykiss] post-login init failed', e));
     } catch(err) {
       if((err as ApiError).type === 'SESSION_PASSWORD_NEEDED') {
         import('../pages/authFlow').then(({navigateAuth}) => navigateAuth({name: 'password'}));
