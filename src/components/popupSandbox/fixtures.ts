@@ -101,7 +101,7 @@ export const botUser = makeUser({
   first_name: 'Sandbox Bot',
   username: 'sandbox_bot',
   photo: {_: 'userProfilePhotoEmpty'},
-  pFlags: {bot: true}
+  pFlags: {bot: true, bot_has_main_app: true}
 });
 
 export const deletedUser = makeUser({

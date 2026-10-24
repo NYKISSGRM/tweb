@@ -278,8 +278,10 @@ export default class ChatTopbar {
             return;
           }
 
-          this.appSidebarRight.toggleSidebar(!document.body.classList.contains(RIGHT_COLUMN_ACTIVE_CLASSNAME));
-        } else {
+          if(!this.openProfilePopup()) {
+            this.appSidebarRight.toggleSidebar(!document.body.classList.contains(RIGHT_COLUMN_ACTIVE_CLASSNAME));
+          }
+        } else if(!this.openProfilePopup()) {
           this.appSidebarRight.toggleSidebar(true);
         }
       }
@@ -899,6 +901,18 @@ export default class ChatTopbar {
     this.attachClickEvent(this.btnLogFilters, () => {
       this.onFilterActionsClick();
     });
+  }
+
+  /** The header opens the profile as a centered window; a preview keeps the right column. */
+  private openProfilePopup() {
+    if(this.chat.isPreview || this.chat.type !== ChatType.Chat) return false;
+
+    const {peerId} = this;
+    const threadId = this.chat.threadId;
+    import('@components/popups/profile').then(({toggleProfilePopup}) => {
+      toggleProfilePopup({peerId, threadId, moreButtons: () => this.menuButtons as any});
+    });
+    return true;
   }
 
   public addContact() {

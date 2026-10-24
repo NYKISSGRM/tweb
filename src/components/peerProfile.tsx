@@ -49,7 +49,7 @@ import differenceInYears from '@helpers/date/differenceInYears';
 import prepareTextWithEntitiesForCopying from '@helpers/prepareTextWithEntitiesForCopying';
 import generateVerifiedIcon from '@components/generateVerifiedIcon';
 import {IconTsx} from './iconTsx';
-import {StoriesSegments} from '@components/avatarNew';
+import {AvatarNewTsx, StoriesSegments} from '@components/avatarNew';
 import {MyDocument} from '../lib/appManagers/appDocsManager';
 import wrapEmojiText, {EmojiTextTsx} from '@lib/richTextProcessor/wrapEmojiText';
 import {wrapSolidComponent} from '../helpers/solid/wrapSolidComponent';
@@ -73,11 +73,25 @@ import getPeerId from '@appManagers/utils/peers/getPeerId';
 
 keepMe(ripple);
 
+/**
+ * The profile as the body of the centered profile popup (`popups/profile`): no cover carousel, no
+ * media tabs, no collapsing header. The popup brings what goes between the blocks.
+ */
+export type PeerProfilePopupSlots = {
+  /** Under the header: the Message / Sound / More buttons. */
+  actions?: JSX.Element,
+  /** Between the open-app button and the bot's own rows: the media counters. */
+  counters?: JSX.Element,
+  /** After everything else. */
+  footer?: JSX.Element
+};
+
 type PeerProfileContextValue = {
   peerId: PeerId,
   threadId: number,
   scrollable: Scrollable,
   setCollapsedOn: HTMLElement,
+  popup?: PeerProfilePopupSlots,
   isDialog: boolean,
   onPinnedGiftsChange: (gifts: MyStarGift[]) => void,
   onAvatarReady: (promise: Promise<void>) => void,
@@ -141,8 +155,9 @@ const PeerProfile = (props: {
   peerId: PeerId,
   threadId?: number,
   isDialog?: boolean,
-  scrollable: Scrollable,
-  setCollapsedOn: HTMLElement,
+  scrollable?: Scrollable,
+  setCollapsedOn?: HTMLElement,
+  popup?: PeerProfilePopupSlots,
   searchSuperContainer?: HTMLElement,
   onPinnedGiftsChange?: (gifts: MyStarGift[]) => void,
   onAvatarReady?: (promise: Promise<void>) => void
@@ -155,6 +170,7 @@ const PeerProfile = (props: {
     threadId: props.threadId,
     scrollable: props.scrollable,
     setCollapsedOn: props.setCollapsedOn,
+    popup: props.popup,
     isDialog: props.isDialog,
     onPinnedGiftsChange: props.onPinnedGiftsChange,
     onAvatarReady: props.onAvatarReady,
@@ -200,7 +216,7 @@ const PeerProfile = (props: {
     }
   };
 
-  props.setCollapsedOn.classList.add('profile-container');
+  if(!props.popup) props.setCollapsedOn.classList.add('profile-container');
 
   if(value.peerId.isUser() && value.peerId !== rootScope.myId) {
     const refreshCurrentUser = () => {
@@ -225,18 +241,50 @@ const PeerProfile = (props: {
           value.peerId === rootScope.myId && 'is-me'
         )}
       >
-        <PeerProfile.AutoAvatar />
+        <Show when={props.popup} fallback={<PeerProfile.AutoAvatar />}>
+          <PeerProfile.PopupHeader />
+          {props.popup.actions}
+        </Show>
         <div class="profile-content-delimiter"></div>
         <PeerProfile.UnofficialWarning />
         <PeerProfile.PersonalChannel />
         <PeerProfile.MainSection />
         <PeerProfile.BotMainApp />
+        <Show when={props.popup}>
+          {props.popup.counters}
+          <Section noDelimiter class="profile-popup-bot-actions">
+            <PeerProfile.BotAddToChat />
+            <PeerProfile.BotPrivacyPolicy />
+            <PeerProfile.BotReport />
+            {props.popup.footer}
+          </Section>
+        </Show>
         <PeerProfile.LinkedCommunity />
         <PeerProfile.BotVerification />
         <PeerProfile.BotPermissions />
         {props.searchSuperContainer}
       </div>
     </PeerProfileContext.Provider>
+  );
+};
+
+PeerProfile.PopupHeader = () => {
+  const context = useContext(PeerProfileContext);
+  const {peerId, threadId} = context.getDetailsForUse();
+
+  return (
+    <div class="profile-popup-header">
+      <AvatarNewTsx
+        class="profile-avatar"
+        peerId={peerId}
+        threadId={context.isTopic ? threadId : undefined}
+        isDialog={context.isDialog}
+        size={84}
+        withStories
+      />
+      <PeerProfile.Name />
+      <PeerProfile.Subtitle />
+    </div>
   );
 };
 
@@ -1703,15 +1751,23 @@ PeerProfile.MainSection = () => {
             commonChats={(context.fullPeer as UserFull.userFull)?.common_chats_count}
           />
         </Show>
+        <Show when={context.popup && context.peerId.isAnyChat()}>
+          <NykissTechInfo
+            peerId={context.peerId}
+            dcId={((context.peer as Chat.channel)?.photo as {dc_id?: number})?.dc_id}
+          />
+        </Show>
         <PeerProfile.Link />
         <PeerProfile.Birthday />
         <PeerProfile.ContactNote />
         <PeerProfile.BusinessHours />
         <PeerProfile.BusinessLocation />
-        <PeerProfile.Notifications />
-        <PeerProfile.BotAddToChat />
-        <PeerProfile.BotPrivacyPolicy />
-        <PeerProfile.BotReport />
+        <Show when={!context.popup}>
+          <PeerProfile.Notifications />
+          <PeerProfile.BotAddToChat />
+          <PeerProfile.BotPrivacyPolicy />
+          <PeerProfile.BotReport />
+        </Show>
       </Show>
     </Section>
   );

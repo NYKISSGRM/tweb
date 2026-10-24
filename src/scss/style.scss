@@ -121,6 +121,7 @@
 @use "partials/popups/starGiftInfo";
 @use "partials/popups/starGiftUpgrade";
 @use "partials/popups/chatPreview";
+@use "partials/popups/profile" as popup-profile;
 
 @use "partials/pages/pages";
 @use "partials/pages/chats";
