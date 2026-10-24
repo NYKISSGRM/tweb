@@ -52,6 +52,14 @@ $menu-search-translateY: -#{$menu-height};
     max-height: 20rem;
   }
 
+  // NYKISS Gram: the floating panel grows with the window (382x420 at the smallest, up to 528x656), the standalone
+  // pickers and the narrow `.is-under` mode keep their own sizes. Grid columns follow the width (auto-fill).
+  &:not(.is-standalone):not(.is-under):not(.smaller) {
+    --width: clamp(23.875rem, 32vw, 33rem);
+    --height: min(clamp(26.25rem, calc(var(--100vh) - 11rem), 41rem), calc(var(--100vh-inset) - var(--chat-input-height) - 4.5rem));
+    max-height: var(--height);
+  }
+
   &.is-standalone {
     // * physical, as the panel's place is: every `getOpenPosition` hands over the physical `left`
     // * of its anchor, in RTL too (a `* var(--reflect)` here put the origin 9rem outside the panel)
