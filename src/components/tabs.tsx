@@ -111,6 +111,28 @@ Tabs.MenuShell = (props: {
 };
 
 /**
+ * A named tab of the emoticons panel: a thin `Tabs.MenuTab` that also carries `data-tab`, so the
+ * row addresses it as it does its icon tabs. Keeps the stripe element the row's slide needs.
+ */
+Tabs.MenuTextTab = (props: {
+  class?: string,
+  /** `data-tab`, for a row whose tabs are not addressed by their position */
+  tab?: number,
+  label: string
+}) => {
+  return (
+    <Tabs.MenuTab
+      class={classNames('menu-horizontal-div-item-text', props.class)}
+      ref={(el) => {
+        if(props.tab !== undefined) el.dataset.tab = '' + props.tab;
+      }}
+    >
+      {props.label}
+    </Tabs.MenuTab>
+  );
+};
+
+/**
  * The emoticons panel's flavour of a tab: an icon button borrowing the row's item styles.
  * Those rows are `no-stripe` — nothing slides behind the active tab, and the icon is the whole
  * tab, so there is neither a background element nor a label wrapper.

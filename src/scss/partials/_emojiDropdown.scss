@@ -6,8 +6,7 @@ $menu-item-active-background-opacity: .06;
 $menu-inner-transition: cubic-bezier(0.42, 0.0, 0.58, 1.0);
 $menu-transition-duration: .2s;
 $menu-height: 3.0625rem;
-// $menu-search-translateY: -2.5rem;
-$menu-search-translateY: -#{$menu-height};
+$pack-strip-height: 2.75rem;
 
 .emoji-dropdown {
   --width: 23.875rem;
@@ -78,7 +77,7 @@ $menu-search-translateY: -#{$menu-height};
 
   &.is-under {
     --width: 100%;
-    --height: min(282px, calc(var(--100vh-inset) - 135px));
+    --height: min(320px, calc(var(--100vh-inset) - 135px));
     position: relative;
     transform: none;
     inset: unset;
@@ -105,22 +104,27 @@ $menu-search-translateY: -#{$menu-height};
 		max-width: 100%;
 		overflow: hidden;
 		height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
 	}
 
 	.emoji-tabs {
 		justify-content: center;
 		//font-weight: 500;
 		border: none;
-		border-top: 1px solid var(--border-color);
+		border-bottom: 1px solid var(--border-color);
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    // room for the delete icon at the end, so the last label does not run under it
+    padding-inline-end: 2.5rem;
 
     &:after {
       content: none;
     }
 
+    // the global sticker/GIF search is redundant next to the pinned search row; it stays in the DOM, the script dereferences it
 		&-search {
-			position: absolute;
-			inset-inline-start: 0;
-			margin-inline-start: .5rem !important;
+			display: none !important;
 		}
 
 		&-delete {
@@ -131,6 +135,32 @@ $menu-search-translateY: -#{$menu-height};
 
     .menu-horizontal-div-item {
       margin: 0 .75rem;
+    }
+
+    // the named tabs: equal shares of the row, an underline instead of the pill
+    .menu-horizontal-div-item.emoji-tabs-text {
+      flex: 1 1 0;
+      width: auto;
+      height: 100%;
+      margin: 0;
+      border-radius: 0;
+      font-size: 1rem;
+      line-height: 1.25rem;
+      font-weight: var(--font-weight-bold);
+      color: var(--secondary-text-color);
+
+      &.active {
+        background: none !important;
+        color: var(--nk-accent) !important;
+      }
+
+      .menu-horizontal-div-item-background {
+        inset-block: auto 0;
+        height: 2px;
+        border-radius: 2px 2px 0 0;
+        background-color: var(--nk-accent);
+        box-sizing: border-box;
+      }
     }
 	}
 
@@ -153,7 +183,7 @@ $menu-search-translateY: -#{$menu-height};
 .emoticons {
   &-container {
     min-height: 100%;
-    /* display: flex; */
+    // the tab is already a flex column while active (_slider.scss .tabs-tab): search, grid, pack strip
     flex-direction: column;
     height: 100%;
     background-color: transparent !important;
@@ -163,35 +193,6 @@ $menu-search-translateY: -#{$menu-height};
         margin-top: .5rem;
       }
 
-      .scrollable-y {
-        height: 100%;
-        max-height: 100%;
-      }
-
-      .emoticons-categories-container:after {
-        display: none;
-      }
-    }
-  }
-
-  &-will-move {
-    &-up,
-    &-down {
-      @include animation-level(2) {
-        transition: transform var(--transition-standard-in);
-      }
-    }
-
-    &-up {
-      .is-searching & {
-        transform: translateY(#{$menu-search-translateY});
-      }
-    }
-
-    &-down {
-      .is-searching & {
-        transform: translateY(.5rem);
-      }
     }
   }
 
@@ -205,12 +206,19 @@ $menu-search-translateY: -#{$menu-height};
     z-index: 4;
     background-color: transparent;
 
+    // inside the pack strip the row fills the strip, not the tab row's height
+    .emoticons-menu-wrapper & {
+      height: 100%;
+      min-height: 0;
+    }
+
     &-wrapper {
       padding: 0;
-      height: $menu-height;
       max-width: 100%;
       position: relative;
-      border-bottom: 1px solid var(--border-color);
+      flex: 0 0 auto;
+      height: $pack-strip-height;
+      border-top: 1px solid var(--border-color);
       // background-color: var(--surface-color);
       background-color: transparent;
     }
@@ -387,16 +395,16 @@ $menu-search-translateY: -#{$menu-height};
     }
 
     .scrollable-y {
-      height: calc(100% + #{$menu-height});
-      max-height: none;
-      // padding-bottom: .5rem;
+      height: 100%;
+      max-height: 100%;
     }
   }
 
   &-search {
     &-container {
+      flex: 0 0 auto;
       height: 2.375rem;
-      margin: 0 .5rem .25rem;
+      margin: .5rem .5rem .25rem;
       border-radius: $border-radius-medium;
       background-color: rgba(var(--primary-text-color-rgb), #{$menu-item-active-background-opacity});
     }
@@ -513,16 +521,6 @@ $menu-search-translateY: -#{$menu-height};
   &-categories {
     &-container {
       width: 100%;
-
-      &.emoticons-has-search:after {
-        content: " ";
-        display: block;
-        height: calc(#{$menu-height} + .5rem);
-
-        .is-searching & {
-          height: .5rem;
-        }
-      }
     }
   }
 

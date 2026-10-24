@@ -84,14 +84,16 @@ const renderEmojiDropdownElement = (): HTMLDivElement => {
     ['delete justify-self-end', 'deleteleft', -1, 'AccDescr.DeleteLastCharacter']
   ];
   const d = div.firstElementChild as HTMLDivElement;
-  d.append(Tabs.Menu({
+  // the row goes first: DOM order is the visual order (tabs on top, the pack strip is the tab's own last child)
+  d.prepend(Tabs.Menu({
     class: 'emoji-tabs emoticons-menu no-stripe',
-    children: a.map(([className, icon, tabId, ariaLabel]) => Tabs.MenuIconTab({
-      icon,
-      class: `emoji-tabs-${className}`,
-      tab: tabId,
-      label: I18n.format(ariaLabel, true)
-    }))
+    children: a.map(([className, icon, tabId, ariaLabel]) => {
+      const label = I18n.format(ariaLabel, true);
+      // emoji, stickers and GIFs are named tabs, search and delete stay icons
+      return tabId >= 0 ?
+        Tabs.MenuTextTab({class: `emoji-tabs-${className}`, tab: tabId, label}) :
+        Tabs.MenuIconTab({icon, class: `emoji-tabs-${className}`, tab: tabId, label});
+    })
   }) as HTMLElement);
   return d;
 }

@@ -105,7 +105,8 @@ export default class EmoticonsTabC<Category extends StickersTabCategory<any, any
     this.content = document.createElement('div');
     this.content.classList.add('emoticons-content');
 
-    this.container.append(...[this.menuWrapper, this.content].filter(Boolean));
+    // the pack strip is the last child: it sits under the grid
+    this.container.append(...[this.content, this.menuWrapper].filter(Boolean));
 
     this.scrollable = new Scrollable(this.content, 'STICKERS');
 
@@ -142,7 +143,8 @@ export default class EmoticonsTabC<Category extends StickersTabCategory<any, any
     const searchContainer = document.createElement('div');
     searchContainer.classList.add('emoticons-search-container');
     if(!this.noMenu) searchContainer.classList.add('emoticons-will-move-down');
-    this.scrollable.append(searchContainer);
+    // pinned under the tabs: outside the scroller, so it neither scrolls nor collides with the sticky titles
+    this.container.insertBefore(searchContainer, this.content);
     this.categoriesContainer.classList.add('emoticons-has-search');
     this.disposeSearch = render(() => {
       const [query, setQuery] = createSignal('');
