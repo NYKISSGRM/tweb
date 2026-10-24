@@ -1,0 +1,179 @@
+// NYKISS Gram: the hamburger menu as a left drawer (AyuGram style). The menu is the usual .btn-menu, opened with the
+// `drawer` option of ButtonMenuToggle: the markup, the items and the focus handling are the menu's own, this file only
+// lays it out as a panel on the inline start edge. Logical properties only; the slide mirrors with --reflect.
+// The panel sits in the overlay root next to the popups: a popup opened from an item is mounted later and covers it.
+
+.btn-menu-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 4; // the menu follows it in the same layer
+  background: rgba(6, 5, 10, .62);
+  visibility: hidden;
+  opacity: 0;
+
+  &.active {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  body:not(.animation-level-0) & {
+    transition: opacity .2s linear, visibility .2s linear;
+  }
+}
+
+.btn-menu.btn-menu-drawer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline: 0 auto;
+  inline-size: min(20rem, 86vw);
+  block-size: 100dvh;
+  max-block-size: none;
+  padding-block: 0 .5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 0;
+  border-start-end-radius: 12px;
+  border-end-end-radius: 12px;
+  box-shadow: 0 0 40px rgba(0, 0, 0, .5);
+  transform-origin: center;
+  scrollbar-width: thin;
+
+  // not(.active): the mobile `.was-open` rule of the base menu would otherwise keep a closed panel in place
+  &:not(.active) {
+    transform: translateX(calc(-100% * var(--reflect)));
+  }
+
+  &.active {
+    transform: translateX(0);
+  }
+
+  // reduced: the panel fades where it stands
+  body:not(.animation-level-2) &,
+  body:not(.animation-level-2) &.active {
+    transform: none;
+  }
+
+  body.animation-level-2 & {
+    transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s linear, visibility .28s linear;
+  }
+
+  hr {
+    margin-block: .25rem;
+  }
+
+  .btn-menu-item {
+    --padding-left: 1rem;
+    --padding-right: 1rem;
+    --icon-margin: 1.25rem;
+    --icon-size: 1.375rem;
+    height: 2.5rem;
+    font-size: var(--font-size-14);
+    font-weight: 600;
+  }
+
+  // the NYKISS row keeps its outline whole: side margins and the same radius the ring is drawn with
+  .btn-menu-item.nk-menu-new {
+    margin-block: 2px;
+    margin-inline: .5rem;
+    border-radius: 12px;
+
+    // skin.scss pins the dot with a physical `right`; in the drawer it follows the inline end
+    .nk-hint-dot {
+      right: auto;
+      inset-inline-end: 14px;
+    }
+  }
+
+  // account header
+  .btn-menu-item.btn-menu-account-head {
+    --icon-size: 48px;
+    --icon-margin: 1rem;
+    --padding-left: 1rem;
+    position: relative;
+    height: auto;
+    min-height: 5.5rem;
+    padding-block: 1rem;
+    margin-block-end: .25rem;
+    border-block-end: 1px solid var(--border-color);
+    align-items: center;
+
+    .btn-menu-item-icon {
+      align-self: center;
+    }
+
+    .btn-menu-item-text {
+      flex: 1;
+      min-inline-size: 0;
+    }
+  }
+
+  .btn-menu-account-head-info {
+    display: flex;
+    flex-direction: column;
+    gap: .125rem;
+    min-inline-size: 0;
+    padding-inline-end: 2rem;
+  }
+
+  .btn-menu-account-head-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-16);
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  .btn-menu-account-head-subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-14);
+    font-weight: 400;
+    color: var(--secondary-text-color);
+    text-align: start;
+  }
+
+  .btn-menu-account-head-settings {
+    font-size: var(--font-size-13, 13px);
+    font-weight: 500;
+    color: var(--nk-accent-hi, var(--primary-color));
+  }
+
+  .btn-menu-account-head-chevron {
+    position: absolute;
+    inset-inline-end: .75rem;
+    inset-block-end: .75rem;
+    padding: .25rem;
+    font-size: 1.25rem;
+    color: var(--secondary-text-color);
+    cursor: pointer;
+  }
+
+  &.is-accounts-collapsed {
+    .btn-menu-account-item {
+      display: none;
+    }
+
+    .btn-menu-account-head-chevron {
+      transform: rotate(180deg);
+    }
+  }
+
+  // other accounts: name on the start side, the counter pill on the end side
+  .btn-menu-account-item {
+    .btn-menu-item-text {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-inline-size: 0;
+    }
+
+    .badge {
+      margin-inline-start: auto;
+      min-inline-size: 20px;
+      block-size: 19px;
+      border-radius: 10px;
+    }
+  }
+}

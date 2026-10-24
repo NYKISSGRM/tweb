@@ -20,6 +20,7 @@ import I18n from '@lib/langPack';
 import IS_TOUCH_SUPPORTED from '@environment/touchSupport';
 import ensureButtonSemantics from '@helpers/dom/ensureButtonSemantics';
 import Modes from '@config/modes';
+import {ensureDrawerScrim, setDrawerBackgroundInert} from '@lib/nykiss/drawerState';
 
 // TODO: refactor for attachClickEvent, because if move finger after touchstart, it will start anyway
 export function ButtonMenuToggleHandler({
@@ -111,7 +112,8 @@ export default function ButtonMenuToggle({
   icon = 'more',
   appendTo,
   floatingDirection,
-  positionPadding
+  positionPadding,
+  drawer
 }: {
   buttonOptions?: Parameters<typeof ButtonIcon>[1],
   listenerSetter?: ListenerSetter,
@@ -126,7 +128,9 @@ export default function ButtonMenuToggle({
   onCloseAfter?: () => void,
   noIcon?: boolean,
   icon?: (string & {}) | Icon,
-  positionPadding?: MenuPositionPadding
+  positionPadding?: MenuPositionPadding,
+  // opens as a panel on the inline start edge over a dimmed page instead of next to the trigger
+  drawer?: boolean
 }) {
   const resolvedButtonOptions = buttonOptions ? {...buttonOptions} : {};
   // Without the a11y layer a toggle given button options is a <div>, as it was
@@ -149,7 +153,7 @@ export default function ButtonMenuToggle({
     button.setAttribute('aria-label', I18n.format(buttonOptions.ariaLabel, true));
   }
 
-  const autoPosition = !appendTo;
+  const autoPosition = !appendTo && !drawer;
   button.classList.add('btn-menu-toggle');
 
   const listenerSetter = new ListenerSetter();
@@ -163,7 +167,15 @@ export default function ButtonMenuToggle({
   const canDeleteTextElementsOnClose = buttons.filter((button) => !button.textElement);
   const previousButtons = buttons.slice();
 
-  let element: HTMLElement, closeTimeout: number, tempId = 0;
+  let element: HTMLElement, scrim: HTMLElement, closeTimeout: number, tempId = 0;
+  const showDrawer = () => {
+    if(!drawer) return;
+    scrim?.classList.add('active');
+    if(Modes.a11y) {
+      element?.setAttribute('aria-modal', 'true');
+      setDrawerBackgroundInert(true);
+    }
+  };
   ButtonMenuToggleHandler({
     el: button,
     onOpen: async(e) => {
@@ -173,6 +185,7 @@ export default function ButtonMenuToggle({
       if(closeTimeout) {
         clearCloseTimeout();
         if(element?.isConnected) {
+          showDrawer();
           return element;
         }
       }
@@ -192,8 +205,8 @@ export default function ButtonMenuToggle({
         listenerSetter
       });
       if(_tempId !== tempId) return;
-      _element.classList.add(direction);
-      if(direction === 'bottom-center') {
+      _element.classList.add(...(drawer ? ['btn-menu-old', 'btn-menu-drawer'] : [direction]));
+      if(!drawer && direction === 'bottom-center') {
         _element.style.setProperty('--parent-half-width', ((container ?? button).clientWidth / 2) + 'px');
       }
 
@@ -209,6 +222,9 @@ export default function ButtonMenuToggle({
       const mountTarget = appendTo ??
         (fullScreenElement?.contains(button) ? fullScreenElement : getOverlayRoot());
       mountTarget.append(_element);
+      if(drawer) {
+        scrim = ensureDrawerScrim(scrim, _element, () => contextMenuController.close());
+      }
       if(autoPosition) {
         if(floatingDirection) {
           const appWindow = getAppWindow();
@@ -235,6 +251,9 @@ export default function ButtonMenuToggle({
       await doubleRaf();
       if(_tempId !== tempId) {
         _element.remove();
+        scrim?.remove();
+      } else {
+        showDrawer();
       }
 
       return _element
@@ -245,6 +264,8 @@ export default function ButtonMenuToggle({
     onClose: () => {
       ++tempId;
       clearCloseTimeout();
+      scrim?.classList.remove('active');
+      if(drawer) setDrawerBackgroundInert(false);
       onClose?.();
 
       closeTimeout = window.setTimeout(() => {
@@ -257,6 +278,8 @@ export default function ButtonMenuToggle({
         });
         canDeleteTextElementsOnClose.forEach((button) => delete button.textElement);
         element.remove();
+        scrim?.remove();
+        scrim = undefined;
       }, 300);
     }
   });

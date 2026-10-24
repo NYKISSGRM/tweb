@@ -32,6 +32,8 @@ import focusWhenSettled from '@helpers/dom/focusWhenSettled';
 import isLastInputPointer from '@helpers/dom/inputModality';
 import {attachClickEvent, CLICK_EVENT_NAME, simulateClickEvent} from '@helpers/dom/clickEvent';
 import cancelEvent from '@helpers/dom/cancelEvent';
+import {formatPhoneNumber} from '@helpers/formatPhoneNumber';
+import {formatAccountCounter, getAccountCounter, getDrawerSubtitle, readAccountsCollapsed, writeAccountsCollapsed} from '@lib/nykiss/drawerState';
 import ButtonIcon from '@components/buttonIcon';
 import confirmationPopup from '@components/confirmationPopup';
 import {replaceButtonIcon} from '@components/button';
@@ -170,7 +172,7 @@ export class AppSidebarLeft extends SidebarSlider {
     this.backBtn = this.sidebarEl.querySelector('.sidebar-back-button') as HTMLButtonElement;
     this.backBtn.setAttribute('aria-label', I18n.format('StarsRating.Back', true));
 
-    this.toolsBtn = this.createToolsMenu();
+    this.toolsBtn = this.createToolsMenu(undefined, undefined, true);
     // .is-visible is owned by the Solid effect below (see "burger element
     // has two visual states") — don't seed it here.
     this.toolsBtn.classList.add('sidebar-tools-button');
@@ -677,7 +679,7 @@ export class AppSidebarLeft extends SidebarSlider {
     });
   }
 
-  public createToolsMenu(mountTo?: HTMLElement, positionPadding?: Parameters<typeof ButtonMenuToggle>[0]['positionPadding']) {
+  public createToolsMenu(mountTo?: HTMLElement, positionPadding?: Parameters<typeof ButtonMenuToggle>[0]['positionPadding'], drawer?: boolean) {
     const closeTabsBefore = async(clb: () => void) => {
       this.closeEverythingInside() && await pause(200);
 
@@ -809,6 +811,7 @@ export class AppSidebarLeft extends SidebarSlider {
       container: mountTo,
       buttonOptions: {ariaLabel: 'MultiAccount.More'},
       positionPadding,
+      drawer,
       onOpenBefore: async() => {
         const emptyAttachMenuBots: AttachMenuBot[] = [];
         const attachMenuBots = await Promise.race([
@@ -863,18 +866,19 @@ export class AppSidebarLeft extends SidebarSlider {
           const accountNumber = i as ActiveAccountNumber;
           if(accountNumber === getCurrentAccount()) {
             const user = await this.managers.appUsersManager.getSelf();
-            accountButtons.push({
+            const onSettings = () => {
+              closeTabsBefore(() => {
+                this.createTab(AppSettingsTab).open();
+              });
+            };
+            accountButtons.push(drawer ? createDrawerAccountHead(user, wrapUserName(user), totalAccounts > 1, onSettings) : {
               avatarInfo: {
                 accountNumber: getCurrentAccount(),
                 peerId: rootScope.myId.toPeerId(),
                 active: true
               },
               regularText: wrapUserName(user),
-              onClick: () => {
-                closeTabsBefore(() => {
-                  this.createTab(AppSettingsTab).open();
-                });
-              }
+              onClick: onSettings
             });
           } else {
             const otherManagers = createProxiedManagersForAccount(accountNumber);
@@ -885,9 +889,10 @@ export class AppSidebarLeft extends SidebarSlider {
             const content = document.createElement('span');
             content.append(wrapUserName(user || peerId));
 
-            if(notificationsCount[accountNumber]) {
+            const counter = getAccountCounter(notificationsCount, accountNumber);
+            if(counter) {
               const badge = createBadge('span', 20, 'primary');
-              setBadgeContent(badge, '' + notificationsCount[accountNumber]);
+              setBadgeContent(badge, drawer ? formatAccountCounter(counter) : '' + counter);
               content.append(badge);
             }
 
@@ -895,7 +900,8 @@ export class AppSidebarLeft extends SidebarSlider {
               avatarInfo: {
                 accountNumber,
                 peerId,
-                peer: user
+                peer: user,
+                ...(drawer ? {size: 26} : {})
               },
               className: 'btn-menu-account-item',
               regularText: content,
@@ -922,7 +928,8 @@ export class AppSidebarLeft extends SidebarSlider {
 
         filteredButtons.splice(0, filteredButtons.length, ...buttons);
       },
-      onOpen: () => {
+      onOpen: (_e, element) => {
+        if(drawer) element.classList.toggle('is-accounts-collapsed', readAccountsCollapsed());
         moreSubmenu.onOpen();
         newSubmenu.onOpen();
         btnArchive.element?.append(this.archivedCount);
@@ -1857,6 +1864,54 @@ export class AppSidebarLeft extends SidebarSlider {
 const appSidebarLeft = new AppSidebarLeft();
 MOUNT_CLASS_TO.appSidebarLeft = appSidebarLeft;
 export default appSidebarLeft;
+
+// NYKISS Gram: the account header of the menu drawer — big avatar, name, @username or phone, a link to settings and,
+// when there are other accounts, a chevron that folds their rows away
+function createDrawerAccountHead(user: User.user, name: Node | string, hasOtherAccounts: boolean, onSettings: () => void) {
+  const content = document.createElement('span');
+  content.classList.add('btn-menu-account-head-info');
+
+  const nameEl = document.createElement('span');
+  nameEl.classList.add('btn-menu-account-head-name');
+  nameEl.append(name);
+  content.append(nameEl);
+
+  const subtitle = getDrawerSubtitle(user, (phone) => formatPhoneNumber('+' + phone).formatted);
+  if(subtitle) {
+    const subtitleEl = document.createElement('span');
+    subtitleEl.classList.add('btn-menu-account-head-subtitle');
+    subtitleEl.dir = 'ltr';
+    subtitleEl.textContent = subtitle;
+    content.append(subtitleEl);
+  }
+
+  const settingsEl = i18n('Settings');
+  settingsEl.classList.add('btn-menu-account-head-settings');
+  content.append(settingsEl);
+
+  if(hasOtherAccounts) {
+    const chevron = Icon('down', 'btn-menu-account-head-chevron');
+    chevron.setAttribute('aria-label', I18n.format('MultiAccount.More', true));
+    attachClickEvent(chevron, (e) => {
+      cancelEvent(e);
+      const collapsed = (e.target as HTMLElement).closest('.btn-menu')?.classList.toggle('is-accounts-collapsed');
+      writeAccountsCollapsed(!!collapsed);
+    });
+    content.append(chevron);
+  }
+
+  return {
+    avatarInfo: {
+      accountNumber: getCurrentAccount(),
+      peerId: rootScope.myId.toPeerId(),
+      active: true,
+      size: 48
+    },
+    className: 'btn-menu-account-head',
+    regularText: content,
+    onClick: onSettings
+  } as ButtonMenuItemOptions;
+}
 
 function getVersionLink() {
   const btnMenuFooter = document.createElement('a');
