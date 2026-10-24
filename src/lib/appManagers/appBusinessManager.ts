@@ -21,6 +21,8 @@ import {
 } from '@appManagers/utils/authorizationAutoconfirmPeriod';
 import ctx from '@environment/ctx';
 import isSameUserId from '@helpers/isSameUserId';
+import {randomLong} from '@helpers/random';
+import type {QuickReplyShortcut} from '@lib/nykiss/quickReplies';
 
 const MAX_TIMEOUT = 0x7fffffff;
 
@@ -143,7 +145,14 @@ export default class AppBusinessManager extends AppManager {
       );
     });
 
+    // * quick replies: any change to the shortcuts or their messages drops the cache, the next "/" asks again
+    const dropQuickReplies = () => { this.quickReplies = undefined; };
     this.apiUpdatesManager.addMultipleEventsListeners({
+      updateQuickReplies: dropQuickReplies,
+      updateNewQuickReply: dropQuickReplies,
+      updateDeleteQuickReply: dropQuickReplies,
+      updateQuickReplyMessage: dropQuickReplies,
+      updateDeleteQuickReplyMessages: dropQuickReplies,
       updateNewBotConnection: (update) => {
         this.loadBotConnectionReviews().then(() => {
           this.setBotConnectionReviews(applyBotConnectionReviewUpdate(this.botConnectionReviews, update));
@@ -154,6 +163,59 @@ export default class AppBusinessManager extends AppManager {
     });
 
     return this.loadBotConnectionReviews();
+  }
+
+  private quickReplies: Promise<QuickReplyShortcut[]>;
+
+  /** The account's quick-reply shortcuts (Telegram Business). Empty when there are none or the account may not have them. */
+  public getQuickReplies(): Promise<QuickReplyShortcut[]> {
+    return this.quickReplies ??= this.fetchQuickReplies().catch((): QuickReplyShortcut[] => {
+      this.quickReplies = undefined;
+      return [];
+    });
+  }
+
+  private async fetchQuickReplies(): Promise<QuickReplyShortcut[]> {
+    const result = await this.apiManager.invokeApi('messages.getQuickReplies', {hash: 0});
+    if(result._ !== 'messages.quickReplies') {
+      return [];
+    }
+
+    this.appPeersManager.saveApiPeers(result);
+    const texts = new Map<number, string>();
+    result.messages.forEach((message) => {
+      if(message._ === 'message') {
+        texts.set(message.id, message.message || '');
+      }
+    });
+
+    return result.quick_replies.map((reply) => ({
+      id: reply.shortcut_id,
+      shortcut: reply.shortcut,
+      count: reply.count,
+      preview: texts.get(reply.top_message) || ''
+    }));
+  }
+
+  /** Sends every message of the shortcut to the chat, like the official apps do. */
+  public async sendQuickReply(peerId: PeerId, shortcutId: number) {
+    const messages = await this.apiManager.invokeApi('messages.getQuickReplyMessages', {shortcut_id: shortcutId, hash: 0});
+    if(messages._ === 'messages.messagesNotModified') {
+      return;
+    }
+
+    const ids = messages.messages.map((message) => message.id);
+    if(!ids.length) {
+      return;
+    }
+
+    const updates = await this.apiManager.invokeApi('messages.sendQuickReplyMessages', {
+      peer: this.appPeersManager.getInputPeerById(peerId),
+      shortcut_id: shortcutId,
+      id: ids,
+      random_id: ids.map(() => randomLong())
+    });
+    this.apiUpdatesManager.processUpdateMessage(updates);
   }
 
   public saveBusinessIntro(userId: UserId, intro: BusinessIntro) {

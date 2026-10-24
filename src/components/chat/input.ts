@@ -70,6 +70,7 @@ import classifyInputKeyup from '@helpers/dom/classifyInputKeyup';
 import isPlausibleEmojiQuery from '@components/chat/isPlausibleEmojiQuery';
 import EmojiHelper from '@components/chat/emojiHelper';
 import CommandsHelper from '@components/chat/commandsHelper';
+import QuickRepliesHelper from '@components/chat/quickRepliesHelper';
 import AutocompleteHelperController from '@components/chat/autocompleteHelperController';
 import AutocompleteHelper from '@components/chat/autocompleteHelper';
 import MentionsHelper from '@components/chat/mentionsHelper';
@@ -486,6 +487,7 @@ export default class ChatInput {
   private stickersHelper: StickersHelper;
   private emojiHelper: EmojiHelper;
   private commandsHelper: CommandsHelper;
+  private quickRepliesHelper: QuickRepliesHelper;
   private mentionsHelper: MentionsHelper;
   private inlineHelper: InlineHelper;
   // * lowercased usernames known to be guest bots (bot_guestchat). a leading @guestbot in the
@@ -1580,7 +1582,10 @@ export default class ChatInput {
     // * emoji helper positions itself above the stickers panel and hides on stickers scroll
     this.emojiHelper.addSibling(this.stickersHelper);
     this.emojiHelper.attachStickersHelper(this.stickersHelper);
-    if(!this.excludeParts.commandsHelper) this.commandsHelper = new CommandsHelper(this.rowsWrapper, this.autocompleteHelperController, this, this.managers);
+    if(!this.excludeParts.commandsHelper) {
+      this.commandsHelper = new CommandsHelper(this.rowsWrapper, this.autocompleteHelperController, this, this.managers);
+      this.quickRepliesHelper = new QuickRepliesHelper(this.rowsWrapper, this.autocompleteHelperController, this, this.managers);
+    }
     this.mentionsHelper = new MentionsHelper(this.rowsWrapper, this.autocompleteHelperController, this, this.managers);
     this.inlineHelper = new InlineHelper(this.rowsWrapper, this.autocompleteHelperController, this.chat, this.managers);
     this.rowsWrapper.append(this.newMessageWrapper);
@@ -4072,6 +4077,8 @@ export default class ChatInput {
       } else if(!foundHelpers.size && !matches[1] && firstChar === '/') { // commands
         if(this.commandsHelper && await this.commandsHelper.checkQuery(query, this.chat.peerId)) {
           foundHelpers.add(this.commandsHelper);
+        } else if(this.quickRepliesHelper && await this.quickRepliesHelper.checkQuery(query, this.chat.peerId)) {
+          foundHelpers.add(this.quickRepliesHelper);
         }
       } else if(!foundHelpers.size && this.chat.appSettings.emoji.suggest) { // emoji
         query = query.replace(/^\s*/, '');
